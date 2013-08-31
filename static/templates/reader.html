@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<title>Scribble Short Fiction Reader -- Prototype</title>
+		<link rel="stylesheet" href="/css/style.css" type="text/css" />
+		<script type="text/javascript" src="http://www.parsecdn.com/js/parse-1.2.9.min.js"></script>
+		<script src="//ajax.googleapis.com/ajax/libs/jquery/2.0.3/jquery.min.js"></script>
+		<script src="/js/svr.app.js"></script>
+		<script src="/js/jquery.touchSwipe.min.js"></script>
+		<script src="/js/jquery.animate-colors-min.js"></script>
+		 
+		<script type='text/javascript'>				
+		$(document).ready(function() {		
+			var sc = new SVRController();	
+		});
+		</script>
+		<meta name="viewport" content="width=550 user-scalable=0"/>
+	</head>
+	<body class='reader'>
+		<div id='page-wrapper' class='light'>
+			<header>
+				<h1 id='header-title' class='title'></h1>
+				<h1 class='connector'> by </h1>
+				<h1 id='header-author' class='author'></h1>
+				<h2 id='publication-info'></h2>
+				<h2 id='header-subtitle'></h2>
+			</header>
+			<div id='story-text'>
+				<div id='page-navigation'></div>
+				<div id='content'>
+				</div>
+			</div>
+		</div>		
+		<div id='site-logo'>
+			Scribble Vault
+		</div>
+		<div id='story-info'>
+			<h1 id='info-title' class='title'></h1>
+		</div>
+		<div id='user-info-wrapper'>
+			<div id='user-info'></div>
+			<div class='logout'>Logout</div>
+		</div>
+		<div id='settings-wrapper'>
+			<div id='increase-font-button' class='neutral'>
+				Aa&#8743;
+			</div>
+			<div id='decrease-font-button' class='neutral'>
+				Aa&#8744;
+			</div>
+			<div id='light-button'>
+				A
+			</div>
+			<div id='dark-button'>
+				A
+			</div>
+		</div>
+		<div id='social-wrapper'>
+			<div id='favorite-button'>
+				&#9825;
+			</div>
+			<div id='up-button'>
+				Up
+			</div>
+			<div id='down-button'>
+				Down
+			</div>
+		</div>
+		<div id='next-button'>
+			Skip >>
+		</div>
+		<div id='previous-button'>
+			<< Back
+		</div>
+	</body>
+</html>

@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<title>Scribble Short Fiction Reader -- Prototype</title>
+		<link rel="stylesheet" href="/css/style.css" type="text/css" />
+		<script type="text/javascript" src="http://www.parsecdn.com/js/parse-1.2.9.min.js"></script>
+		<script src="//ajax.googleapis.com/ajax/libs/jquery/2.0.3/jquery.min.js"></script>
+		<script src="/js/storycontroller.js"></script>
+		<script type='text/javascript'>
+			var user = null;
+			var story = null;
+			
+			var sc = new StoryController({a:'this'});
+			sc.loadStory();
+			
+			Parse.initialize('arVFof1gZO9kqxJl5GboE5UEb93JQ0Fmc9lifegC','QKKQManFWBNgFE2RUyYpI80MD5SlVjcfEziEdBIL');
+			Story = Parse.Object.extend("Story");
+						
+			function load_story(s) {
+				console.log('loading story', s);
+				story = s;
+				//Setup the story on the page
+				var title = s.get('title');
+				var author = s.get('author');
+				document.getElementById('header-title').innerHTML = title;
+				document.getElementById('info-title').innerHTML = title;
+				document.getElementById('header-author').innerHTML = author;
+				document.getElementById('info-author').innerHTML = author;
+				document.getElementById('story-text').innerHTML = s.get('storyText');
+				
+				//Save the story as the user's last story read
+				if(user) {
+					console.log('setting currentlyReading story');
+					user.set('currentlyReading', s);
+					user.save();
+				} else {
+					console.log('skipping changing currentlyReading story', user.get('username'), user);
+				}
+				
+				//Check if the story is a favorite
+				var relation = user.relation('favorites');
+				var query = relation.query();
+				query.equalTo('objectId', s.get('objectId'));
+				query.find({
+					success: function(list) {if(list.length>0) {$('#favorite-button').addClass('favorited');}}
+				});
+				$('#next-button').removeClass('disabled');
+				$('#previous-button').removeClass('disabled');
+				console.log('story loaded: ', s.get('altmetricScore'), ' / ', s.createdAt);
+			}
+			
+			function load_next_story(s, forceNew) {
+				var query = new Parse.Query(Story);
+				query.descending('createdAt');
+				if(s==null) {
+					if(user && user.get('currentlyReading')!=undefined && !forceNew) {
+						user.get('currentlyReading').fetch({
+							success: function(story) {load_story(story);},
+							error: function(error) {
+								console.log('error getting current story', error);
+								load_next_story(null, true);
+							}
+						});
+					} else {
+						//If no current story and no current user, then load the first story
+						query.descending('altmetricScore');
+						query.limit(1);
+						query.find({
+							success: function(results) {
+								load_story(results[0]);
+							},
+							error: function(error) {alert('Parse fetch error!' + error);}
+						});
+					}
+				} else {
+					query.descending('altmetricScore');
+					console.log('looking for the next lower score', s.get('altmetricScore'));
+					query.lessThanOrEqualTo('altmetricScore',s.get('altmetricScore'));
+					query.limit(15);
+					query.find({
+						success:function(results) {
+							story_to_load = null;
+							current_score = story.get('altmetricScore');
+							created_date = story.createdAt;
+							for (i in results) {
+								if(results[i].get('altmetricScore')==current_score) {
+									if(results[i].createdAt<created_date) {
+										story_to_load = results[i];
+										break;
+									}
+								} else {
+									story_to_load = results[i];
+									break;
+								}
+							}
+							console.log('story to load: ', story_to_load);
+							load_story(story_to_load);
+						},
+						error:function(error) {alert('parse fetch error!' + error);}
+					});
+				}
+				
+			}
+			
+			function load_previous_story(s) {
+				var query = new Parse.Query(Story);
+				query.limit(15);
+				query.descending('createdAt');
+				query.ascending('altmetricScore');
+				console.log('looking for the next higher score', s.get('altmetricScore'));
+				query.greaterThanOrEqualTo('altmetricScore',s.get('altmetricScore'));
+				query.find({
+					success:function(results) {
+						story_to_load = null;
+						current_score = story.get('altmetricScore');
+						current_story_id = story.get('objectId');
+						created_date = story.get('createdAt');
+						for (i in results) {
+							if(results[i].get('altmetricScore')==current_score) {
+								if(results[i].createdAt<created_date && results[i].get('objectId') != current_story_id) {
+									story_to_load = results[i];
+									break;
+								}
+							} else {
+								story_to_load = results[i];
+								break;
+							}
+						}
+						if(story_to_load != null) {
+							console.log('story to load: ', story_to_load);
+							load_story(story_to_load);
+						} else {
+							alert('No earlier stories were found');
+							$('#previous-button').addClass('disabled');
+						}
+					},
+					error:function(error) {alert('parse fetch error!' + error);}
+				});
+				
+			}
+				
+			window.onload=function() {		
+
+				user = Parse.User.current();
+
+				if(!user || user.get('username')==undefined) {
+					Parse.User.logOut();
+					Parse.User.logIn('biren@birenshah.com', 'passwd12', {
+						success: function(result) {
+							user = Parse.User.current();
+							$('#user-info').html(user.get('username'));
+						},
+						error: function(error) {
+							alert('error loggin in user');
+						}
+					});
+				} else {
+					$('#user-info').html(user.get('username'));
+				}
+				console.log('user: ',user);
+				
+				$('#favorite-button').click(function() {
+					console.log('favorites button clicked');
+					if(!user) {alert('signup to add favorites');}
+					else {	
+						var relation = user.relation('favorites');
+						console.log($('#favorite-button').hasClass('favorited'), $('#favorite-button'));
+						if($('#favorite-button').hasClass('favorited')){
+							relation.remove(story);
+							user.save();
+							$('#favorite-button').removeClass('favorited');
+						} else {
+							relation.add(story);
+							user.save();
+							$('#favorite-button').addClass('favorited');
+							console.log('favorite added');
+						}
+					}
+				});
+				
+				$('#next-button').click(function() {
+					console.log('next button clicked');
+					if(!user) {alert('signup to get to next story');}
+					else {
+						load_next_story(story);
+					}
+				});
+				
+				$('#previous-button').click(function() {
+					if(!user) {alert('signup to get to more stories');}
+					else {
+						load_previous_story(story);
+					}
+				});
+				
+				load_next_story(null);
+				
+		}			
+			
+		</script>
+	</head>
+	<body class='{{page}}'>
+		<div id='page-wrapper'>
+			<header>
+				<h1 id='header-title' class='title'></h1>
+				<h1 class='connector'> by </h1>
+				<h1 id='header-author' class='author'></h1>
+			</header>
+			<div id='story-text'></div>
+		</div>		
+	</body>
+	<div id='story-info'>
+		<h1 id='info-title' class='title'></h1>
+		<h1 class='connector'>&nbsp;by&nbsp;</h1>
+		<h1 id='info-author' class='author'></h1>
+	</div>
+	<div id='user-info'></div>
+	<div id='nav-wrapper'>
+		<div id='favorite-button'>
+			&#9825;
+		</div>
+		<div id='yes-button'>
+			Yes
+		</div>
+		<div id='no-button'>
+			No
+		</div>
+		<div id='next-button'>
+			>>
+		</div>
+		<div id='previous-button'>
+			<<
+		</div>
+	</div>
+</html>
