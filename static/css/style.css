@@ -171,6 +171,23 @@ header h1 {
 	cursor:pointer;
 }
 
+.logout a, .login a {
+	color: #FFFFFF;
+	text-decoration:none;
+}
+
+.logout a, .login a {
+	color:#FFFFFF;
+}
+
+.logout a:hover, .login a:hover {
+	text-decoration:underline;
+}
+
+.logout a:visited, .login a:visited {
+	color:#FFFFFF;
+}
+
 #login-form {
 	position:relative;
 	margin-left:25px;

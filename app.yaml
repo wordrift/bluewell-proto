@@ -4,10 +4,6 @@ runtime: python27
 api_version: 1
 threadsafe: true
 
-libraries:
-- name: MySQLdb
-  version: "latest"
-
 handlers:
 - url: /css
   static_dir: static/css

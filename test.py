@@ -1,22 +1,39 @@
-import MySQLdb
-import os
-import webapp2
-
-class IndexPage(webapp2.RequestHandler):
-  def get(self):
-    self.response.headers['Content-Type'] = 'text/plain'
-
-    if (os.getenv('SERVER_SOFTWARE') and
-      os.getenv('SERVER_SOFTWARE').startswith('Google App Engine/')):
-      db = MySQLdb.connect(unix_socket='/cloudsql/your-project-id:your-instance-name', user='root')
-    else:
-      db = MySQLdb.connect(host='localhost', user='root')
-
-    cursor = db.cursor()
-    cursor.execute('SHOW VARIABLES')
-    for r in cursor.fetchall():
-      self.response.write('%s\n' % str(r))
-
-app = webapp2.WSGIApplication([
-    ('/', IndexPage),
-    ])
+from pyfacebook import pyfacebook as facebook
+		# Initialize the Facebook Object.
+		api_key = '540268512708656'
+		secret_key = '4f165ccf0a05ab738e2d19ffc2ff828f'
+		self.facebookapi = facebook.Facebook(api_key, secret_key)
+		
+		# Checks to make sure that the user is logged into Facebook.
+		if self.facebookapi.check_session(self.request):
+			self.response.out.write('fb session success')
+			pass
+		else:
+			# If not redirect them to your application add page.
+			self.response.out.write('fb session fail')
+			url = self.facebookapi.get_add_url()
+			self.response.out.write(url)
+			self.response.out.write('<fb:redirect url="' + url + '" />')
+			return
+		
+		# Checks to make sure the user has added your application.
+		if self.facebookapi.added:
+			self.response.out.write('fb permission success')
+			pass
+		else:
+			self.response.out.write('fb permission fail')
+			# If not redirect them to your application add page.
+			url = self.facebookapi.get_add_url()
+			self.response.out.write('<fb:redirect url="' + url + '" />')
+			return
+		
+		#self.response.out.write(l)
+		#self.response.out.write(fb.uid)
+		
+		# Get the information about the user.
+		#user = fb.users.getInfo( [fb.uid], ['uid', 'name', 'birthday', 'relationship_status'])[0]
+		# Display a welcome message to the user along with all the greetings.
+		#self.response.out.write("<html> <body>")
+		#self.response.out.write('Hello %s,<br>' % user['name'])
+		#self.response.out.write("</html> </body>")
+	

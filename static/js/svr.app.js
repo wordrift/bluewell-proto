@@ -1,172 +1,135 @@
-
-function SVRLoginController(kwargs) {
-	console.log('SVRLoginController constructor');
-	this._model = new SVRModel();
-	var c = this;
-	$('.login-button').bind('click', $.proxy(this.login, c));
-	
-	var s = $.proxy(function(e){
-		var code = (e.keyCode ? e.keyCode : e.which);
- 		if(code == 13) { //Enter keycode
-   			this.login();
- 		}
-	},c);
-	$('#password-input').bind('keypress',s);
-	$('#username-input').bind('keypress',s);
-}
-
-SVRLoginController.prototype.login = function() {
-	console.log('login button pressed');
-	var username = $('#username-input').val();
-	var password = $('#password-input').val();
-	if(!username || !password) {
-		$('#login-error').html('Please enter username and password to login.');
-	} else {
-		this._model.login({
-			scope:this,
-			username:username,
-			password:password,
-			success:function(user) {
-				window.location.href = '/reader';
-			},
-			error:function(error) {
-				$('#password-input').val('');
-				$('#login-error').html('Incorrect username or password. Please try again.');
-			}
-		});
-	}
-}
 /***************
 SVR Controller
 ****************/
 function SVRController(kwargs) {
 	console.log('SVRController constructor');
-	//var SVRController = this;
-	this._user = null;
+	if(!kwargs.userKey) {
+		//TODO make this redirect to a login page, once that's setup
+		window.location.replace('/');
+	}
+	this._userKey = kwargs.userKey; //Stored for conversion to google data store
+	this._logins = kwargs.logins;
 	this._story = null;
 	this._favorite = false;
 	this._rating = null;
-	this._model = new SVRModel();
+	kwargs.controller = this;
+	this._model = new SVRModel(kwargs);
 	this._view = new SVRWebView({model:this._model, controller:this});
-	this._loadCurrentUserAndStory();
+	this.loadNextStory();
 }
 
-SVRController.prototype.loadStory = function(s) {
-	console.log('loadStory',s);
+SVRController.prototype.displayStory = function(s) {
+	console.log('SVRController displayStory', this, s);
 	this._story = s;
-	this._favorite = false;
-	this._rating = null;
 	this._view.setStory(s);
-	this._view.setFavorite(this._favorite);
-	this._view.setRating(this._rating);
 	
-	if(this._user) {
-	
+	if(s.userHistory) {
+		h = s.userHistory;
+		if(h.favorite) {
+			this._favorite = h.favorite;
+		} else {
+			this._favorite = false;
+		}
+		this._view.setFavorite(this._favorite);
 		
-	
-//		this._model.updateReadingHistory(this._user, s);
-		
-		
-	this._model.getFavoriteStatus({
-			scope:this,
-			user:this._user,
-			story: s,
-			success: function(favorite) {
-				console.log('SVRController loadStory setting favorite',favorite);
-				this._favorite = favorite;
-				this._view.setFavorite(favorite);
-			}
-		});
-		this._model.getRating({
-			scope:this,
-			story:this._story,
-			user:this._user,
-			success:function(ratingObj) {
-				console.log('SVRController loadStory got a rating',ratingObj);
-				this._rating = ratingObj;
-				var rating = 0;
-				if(ratingObj) {
-					rating = ratingObj.get('rating');
-				} 
-				this._view.setRating(rating);
-			}
-		});
-		
-	}
+		if(h.rating) {
+			this._rating = h.rating*1;
+		} else {
+			this._rating = null;
+		}
+		this._view.setRating(this._rating);
+	}	
+	this._model.updateStream({
+		scope: this,
+		userKey: this._userKey,
+		data: {
+			title: s.title,
+			storyKey: s.key, 
+			updatedAt: new Date()
+		},
+		success: function(results) {console.log('SVRController displayStory callback', results);},
+		error: function(error) {}
+	});
+
 };
 
 SVRController.prototype.loadNextStory = function(s, forceNew) {
 	console.log('SVRController loadNextStory', arguments);
+	//TODO Move all this logic into model, the controller should just be able to
+	//ask for the next story and pass in: user/userKey, anchor story
+	var includeAnchor = s ? false : true;
+	anchorKey = s ? s.key : null;
 	this._model.getNextStory({
 		scope:this,
-		user:this._user,
-		story:this._story,
-		success:function(story) {
+		data: {userKey: this._userKey, anchorKey:anchorKey, fullText:true},
+		success:function(stories) {
 			console.log('SVRController loadNextStory success', this);
-			this.loadStory(story);
+			this.displayStory(stories[0]);
 		},
 		error:function(error) {
 		}
 	});
 }
 
-SVRController.prototype.loadPreviousStory = function() {
+//Make this just ask the model for the previous story, moving all logic to model
+SVRController.prototype.loadPreviousStory = function(s, forceNew) {
+	anchorKey = s ? s.key : null;
 	this._model.getPreviousStory({
 		scope:this,
-		story:this._story,
-		success: function(story) {
-			console.log('SVRController loadPreviousStory success: ', story);
-			this.loadStory(story);
+		data: {anchorKey:anchorKey, userKey:this._userKey, fullText:true},
+		success: function(stories) {
+			console.log('SVRController loadPreviousStory success: ', stories);
+			this.displayStory(stories[0]);
 		},
 		error: function(error) {
-		}
-	});
-}
-
-SVRController.prototype._loadCurrentUserAndStory = function() {
-	this._model.getCurrentUser({
-		scope: this,
-		success: function(user) {
-			console.log('SVRController successfully got current user', user);
-			this._user = user;
-			this._view.setCurrentUser(user);
-			this.loadNextStory(user, null);
-		},
-		error: function(error) {
-			console.error('SVRController: Error loading current user', error);
 		}
 	});
 }
 
 SVRController.prototype._onFavoriteClick = function() {
 	console.log('favorite clicked', this);
-	this._model.setFavorite({
+	s = this._story;
+	this._favorite = !this._favorite;
+	this._model.updateStream({
 		scope: this,
-		user: this._user,
-		story: this._story,
-		favorite: !this._favorite,
-		success:function(favorite) {
-			this._favorite = favorite;
-			this._view.setFavorite(favorite);		
-		}
+		userKey: this._userKey,
+		data: {
+			title: s.title,
+			storyKey: s.key, 
+			updatedAt: new Date(),
+			favorite: this._favorite
+		},
+		success: function(results) {
+			console.log('SVRController displayStory callback', results);
+			this._view.setFavorite(this._favorite);
+		},
+		error: function(error) {}
 	});
+
 	return;
 }
 SVRController.prototype._setRating = function(r) {
-	this._model.setRating({
-		scope:this,
-		user:this._user,
-		story:this._story,
-		rating: r,
-		success:function(ratingObj) {
-			this._rating = ratingObj;
-			this._view.setRating(r);
-		}
+	s = this._story;
+	this._rating = r;
+	this._model.updateStream({
+		scope: this,
+		userKey: this._userKey,
+		data: {
+			title: s.title,
+			storyKey: s.key, 
+			updatedAt: new Date(),
+			rating: this._rating
+		},
+		success: function(results) {
+			console.log('SVRController displayStory callback', results);
+			this._view.setRating(this._rating);
+		},
+		error: function(error) {}
 	});
 }
 SVRController.prototype._onUpClick = function() {
 	console.log('up clicked', this._rating);	
-	if(!this._rating || this._rating.get('rating')!=5){
+	if(!this._rating || this._rating!=5){
 		console.log('setting rating to 5');
 		this._setRating(5);
 	} else {
@@ -177,7 +140,7 @@ SVRController.prototype._onUpClick = function() {
 
 SVRController.prototype._onDownClick = function() {
 	console.log('down clicked', this._rating);
-	if(!this._rating || this._rating.get('rating')!=1){
+	if(!this._rating || this._rating!=1){
 		this._setRating(1);
 	} else {
 		this._setRating(0);
@@ -190,7 +153,7 @@ SVRController.prototype._onPreviousClick = function() {
 }
 
 SVRController.prototype._onNextClick = function() {
-	console.log('next clicked');
+	console.log('next clicked', this._story);
 	this.loadNextStory(this._story);
 }
 
@@ -248,257 +211,140 @@ STORY MODEL
 ***********/
 function SVRModel(kwargs) {
 	console.log('SVRModel constructor');
-	Parse.initialize('arVFof1gZO9kqxJl5GboE5UEb93JQ0Fmc9lifegC','QKKQManFWBNgFE2RUyYpI80MD5SlVjcfEziEdBIL');
-	Story = Parse.Object.extend("Story");
-	Rating = Parse.Object.extend("UserRatings");
 	return this;
 }
 
-SVRModel.prototype.login = function(kwargs) {
-	Parse.User.logIn(kwargs.username, kwargs.password, {
-		success: function(user) {
-			console.log('SVRModel login successful', kwargs,user);
-			kwargs.success.call(kwargs.scope, user);
-		},
-		error: function(error) {
-			kwargs.error.call(kwargs.scope, error);
-		}
-	});
-}
-
-SVRModel.prototype.getCurrentUser = function(kwargs) {
-	var user = Parse.User.current();
-	if(user !=null) {user.fetch();}
-	console.log('SVRModel getCurrentUser', user);
-	if(!user || user.get('username')==undefined) {
-		console.warn('SVRModel user not logged in');
-		window.location.href = '/';
-	} else {
-		console.log('SVRModel user already logged in');
-		kwargs.success.call(kwargs.scope, user);
-	}
-	return user;
-}
-
-SVRModel.prototype.get= function(object, property) {
-	return object.get(property);
-}
-
-SVRModel.prototype._getStoryQuery = function(direction) {
-	var query = new Parse.Query(Story);
-	switch(direction){
-	case 'next':
-		query.descending('createdAt');
-		query.descending('altmetricScore');
+SVRModel.prototype.get = function(object, property) {
+	//console.log('SVR Model get ', property , object);
+	var v = null;
+	switch(property){
+	case 'publication':
+	case 'publisher':
+		v = object['firstPub'][property];
 		break;
-	case 'previous':
-		query.descending('createdAt');
-		query.ascending('altmetricScore');
+	case 'publicationDate':
+		v = object.firstPub.date;
+		break;
+	default:
+		v = object[property];
+		break;	
 	}
-	return query;
+	return v;
 }
 
-SVRModel.prototype._getFirstStory = function(kwargs) {
-	var q = this._getStoryQuery('next');
-	q.limit(1);
-	q.find({
-		scope: this,
-		success: $.proxy(function(results) {
-			console.log('SVRController loadNextStory success loading first story!');
-			this.loadStory(results[0]);
-		},kwargs.scope),
-		error: function(error) {alert('SVRModel error loading first story!' + error);}
-	});
-}
-
-SVRModel.prototype.getCurrentlyReadingStory = function(kwargs){
-	console.log('SVRModel getCurrentlyReadingStory', kwargs);
-	if(kwargs.user && kwargs.user.get('currentlyReading')!=undefined) {
-		kwargs.user.get('currentlyReading').fetch({
-			success: function(story) {
-				console.log('SVRController loadNextStory success loading currentlyReading!');
-				kwargs.success.call(kwargs.scope, story);
-			},
-			error: function(error) {
-				console.error('SVRModel error fetching currentlyReadingStory', error);
-			}
-		});
-	} else {
-		this._getFirstStory(kwargs);
+SVRModel.prototype.set = function(object, property, value) {
+	switch(property){
+	case 'publication':
+	case 'publisher':
+		object['firstPub'][property]  = value;
+		break;
+	case 'publicationDate':
+		object.firstPub.date = value;
+		break;
+	default:
+		object[property] = value;	
 	}
+	return object;
 }
 
 SVRModel.prototype._processStoryResults = function(results) {
-	console.log('SVRModel _processStoryResults', results);
+	console.log('SVRModel _processStoryResults', results.length);
+	var output = [];
+	for (i in results) {
+		console.log('SVRModel _processStoryResults', i, results[i], this.get(results[i], 'publicationDate'));
+		var d = this._dateStringToObject(this.get(results[i],'publicationDate'));
+		this.set(results[i], 'publicationDate', d);
+		
+		if(results[i]['userHistory']) {
+			for (x in results[i]['userHistory']) {
+				if(results[i]['userHistory'][x] == 'None'){
+					results[i]['userHistory'][x] = null;
+				}
+			}
+		}
+		
+	}
+	return results;
 }
 
-SVRModel.prototype.getNextStory= function(kwargs) {
-	var url = '/service/stories';
-	console.log('SVRModel getNextStory, url:', url);
-	//TOTD First check if we already have the next story in our local store
-	
-	//TODO ask server for the next story
-	/*var p = $.proxy(function(data) {this._processStoryResults(data);}, this);
-	//If not, ask the server
-	$.get(url, {
-		u: kwargs.user ? kwargs.user.id : 0,
-		s: kwargs.story ? kwargs.user.id: 0
-	}, p, 'json');*/
+SVRModel.prototype._dateStringToObject = function(s) {
+	var bits = s.split(/\D/);
+	var date = new Date(bits[0], --bits[1], bits[2]); //Decrement month since 0 = jan
+	console.log('_dateStringToObject ', s, bits, date);
+	return date;
+}
 
-
-	if(kwargs.story==null) {
-		this.getCurrentlyReadingStory(kwargs);
+SVRModel.prototype.getNextStory = function(kwargs) {
+	console.log('SVRModel getNextStory', kwargs);
+	//This is where you overwrite to return cached results
+	//Since results caching is not implemented yet, just pass on the request
+	if(kwargs.data.anchorKey) {
+		kwargs.data.numPrevious = 0;
+		kwargs.data.numAfter = 1;
+		kwargs.data.includeAnchor = false;
 	} else {
-		var s = kwargs.story;
-		var q = this._getStoryQuery('next');
-		q.descending('altmetricScore');
-		console.log('looking for the next lower score', s.get('altmetricScore'));
-		q.lessThanOrEqualTo('altmetricScore',s.get('altmetricScore'));
-		q.limit(15);
-		q.find({
-			success: $.proxy(function(results) {
-				console.log('SVRController loadNextStory success loading next story!');
-				var storyToLoad = null;
-				var currentScore = s.get('altmetricScore');
-				var createdAt = s.createdAt;
-				for (i in results) {
-					if(results[i].get('altmetricScore')==currentScore) {
-						if(results[i].createdAt<createdAt) {
-							storyToLoad = results[i];
-							break;
-						}
-					} else {
-						storyToLoad = results[i];
-						break;
-					}
-				}
-				console.log('story to load: ', storyToLoad);
-				kwargs.success.call(kwargs.scope, storyToLoad);
-			},this),
-			error:function(error) {console.error('SVRModel error loading next story' + error);}
-		});
+		kwargs.data.numPrevious = 0;
+		kwargs.data.numAfter = 0;
+		kwargs.data.includeAnchor = true;
+
 	}
+	this._loadStories(kwargs);
 }
 
 SVRModel.prototype.getPreviousStory = function(kwargs) {
-	var q = this._getStoryQuery('previous');
-	q.limit(15);
+	//TODO First check if we already have the previous story in our local store
 	
-	console.log('looking for the next higher score', kwargs.story.get('altmetricScore'));
-	q.greaterThanOrEqualTo('altmetricScore',kwargs.story.get('altmetricScore'));
-	q.find({
-		success:function(results) {
-			console.log('StoryMode getPreviousStory: Success getting previous story');
-			var previousStory = null;
-			var currentScore = kwargs.story.get('altmetricScore');
-			var currentStoryId = kwargs.story.get('objectId');
-			var createdAt = kwargs.story.get('createdAt');
-			for (i in results) {
-				if(results[i].get('altmetricScore')==currentScore) {
-					if(results[i].createdAt<createdAt && results[i].get('objectId') != currentStoryId) {
-						previousStory = results[i];
-						break;
-					}
-				} else {
-					previousStory = results[i];
-					break;
-				}
-			}
-			console.log('story to load: ', previousStory);
-			kwargs.success.call(kwargs.scope, previousStory);
-		},
-		error:function(error) {
-			console.error('Error fetching previous story!' + error);
-			kwargs.error.call(kwargs.scope, error);
-		}
+	//Get stories from server by calling _loadStories(kwargs)
+	kwargs.data.numPrevious = 1;
+	kwargs.data.numAfter = 0;
+	kwargs.data.includeAnchor = false;
+	this._loadStories(kwargs);
+}
+
+SVRModel.prototype._loadStories = function(kwargs) {
+
+	/*  Gets stories from the server
+	data params:
+		anchor - the story to use as a reference
+		includeAnchor = whether the server should send the anchor story too
+		fullText = do we return full text or not
+		numPrevious = number to get before the anchor
+		numAfter = number to get after the anchor
+	*/
+	
+
+	console.log('SVRModel _loadStories', kwargs);
+	$.ajax({
+		type: 'GET',
+		url:'/service/stream',
+		data: kwargs.data,
+		context: this,
+		settings: {contentType:'application/json'}
+	}).done(function(results) {
+			console.log('_loadStories callback ', this);
+			var stories = this._processStoryResults(results);
+			kwargs.success.call(kwargs.scope, stories);
 	});
+	
+
+	
 }
 
-SVRModel.prototype.setCurrentlyReading = function(user, s) {
-	//Save the story as the user's last story read
-	if(user) {
-		console.log('setting currentlyReading story');
-		user.set('currentlyReading', s);
-//		user.set('currentlyReadingTimestamp') = new Date();
-		user.save();
-	} else {
-		console.error('Cannot save currently reading story without user');
-	}
-}
+SVRModel.prototype.updateStream = function(kwargs) {
+	console.log('SVRModel updateStream', kwargs);
+	url = '/service/stream';
+	
+	//TODO update local cache so updates can be batched
+	//Right now, we just forward the requests on.
+	d = JSON.stringify([kwargs.data]);
 
-SVRModel.prototype.setFavorite = function(kwargs) {
-	if(!kwargs.user || !kwargs.story) {
-		console.error('SVRModel cannot change favorite status without story and user');
-		kwargs.error.call(kwargs.scope, null);
-	} else {
-		var relation = kwargs.user.relation('favorites');
-		if(kwargs.favorite) {
-			relation.add(kwargs.story);	
-		} else {
-			relation.remove(kwargs.story);
-		}
-		kwargs.user.save();
-		kwargs.success.call(kwargs.scope,kwargs.favorite);
-	}
-}
-
-SVRModel.prototype.getRating = function(kwargs) {
-	if(!kwargs.user || !kwargs.story) {
-		console.error('SVRModel cannot get ratings status without story and user');
-		kwargs.error.call(kwargs.scope, null);
-	} else {
-		var q = new Parse.Query(Rating);
-		q.equalTo('user',kwargs.user);
-		q.equalTo('story',kwargs.story);
-		q.find({
-			success:function(results) {
-				console.log('SVRModel getRating success', results);
-				kwargs.success.call(kwargs.scope,results[0]);
-			}
-		});
-	}
-}
-
-SVRModel.prototype.setRating = function(kwargs) {
-	if(!kwargs.user || !kwargs.story || kwargs.rating==undefined) {
-		console.error('Cannot create a rating without user, story, and rating');
-		kwargs.error.call(kwargs.scope);
-	} else {
-		//See if there's existing rating
-		this.getRating({
-			scope:this,
-			user:kwargs.user,
-			story:kwargs.story,
-			success:function(ratingObj) {
-				console.log('SVRModel setRating got an existing rating', ratingObj);
-				if(ratingObj==undefined) {
-					ratingObj = new Rating();
-					ratingObj.set('user', kwargs.user);
-					ratingObj.set('story',kwargs.story);
-					ratingObj.set('rating',kwargs.rating);
-					ratingObj.save();
-				} else if (kwargs.rating != ratingObj.get('rating')) {
-					ratingObj.set('rating', kwargs.rating);
-					ratingObj.save();
-				} else {
-					console.log('rating already equal to target value');
-				}
-				kwargs.success.call(kwargs.scope, ratingObj);
-			}
-		});
-	}	
-}
-
-SVRModel.prototype.getFavoriteStatus = function(kwargs) {
-	var relation = kwargs.user.relation('favorites');
-	var query = relation.query();
-	console.log('checking for a story in the favorites relation: ', kwargs.story.id, kwargs.story.get('objectId'));
-	query.get(kwargs.story.id, {
-		success: function(list) {
-			kwargs.success.call(kwargs.scope,true);
-		}
-	});
-
+	$.ajax({
+		type: "POST",
+		url:url, 
+		settings: {contentType:'application/json'},
+		context: kwargs.scope,
+		data: {userKey:kwargs.userKey, s:d}
+	}).done(kwargs.success);
 }
 
 SVRModel.prototype.logout = function(kwargs) {
@@ -507,9 +353,9 @@ SVRModel.prototype.logout = function(kwargs) {
 	kwargs.success.call(kwargs.scope);
 }
 
-/***************** 
+/***************** ***************** ***************** ***************** ***************** 
 STORY VIEW 
-***************/
+*************** ***************** ***************** ***************** ***************** */
 function SVRWebView(kwargs) {
 	console.log('SVRWebView constructor');
 	this._model = kwargs.model;
@@ -531,7 +377,7 @@ function SVRWebView(kwargs) {
 	$('#decrease-font-button').click($.proxy(this._controller._onDecreaseFontClick, this._controller));
 	$('#light-button').click($.proxy(this._controller._onLightClick, this._controller));
 	$('#dark-button').click($.proxy(this._controller._onDarkClick, this._controller));
-	$('.logout').click($.proxy(this._controller._onLogoutClick, this._controller));
+	//$('.logout').click($.proxy(this._controller._onLogoutClick, this._controller));
 	
 	$('#page-wrapper, #story-text p, header.h1, header.h2').swipe({
 		//swipeRight: n,
@@ -546,10 +392,22 @@ function SVRWebView(kwargs) {
 		$('#page-wrapper, #story-text').css('margin','0');
 		$('#page-wrapper').css('width','96%');
 		$('#page-wrapper').css('padding','100px 2% 50px 2%');
-		$('#story-text').css('width','100%');
-		$('#story-text').css('padding','0');
+		
+		$('#story-text').css({
+			'width':'100%',
+			'padding':'0'
+		});			
+		$('#site-logo, #user-info-wrapper, #settings-wrapper').css('display','none');
 		$('#story-text, #previous-button, #next-button').css('font-size','2em');
-		$('#story-info').css('font-size','2em');
+		$('story-info').removeClass('left-tag').css({
+			'font-size':'2em',
+			'position':'fixed',
+			'top':0,
+			'left':0,
+			'z-index':100
+		});
+		
+		
 		//$('body').bind('touchmove', function(event) { event.preventDefault() }); //turn off zoom
 		var s = '#social-wrapper, #previous-button, #next-button, #user-info-wrapper, #site-logo, #story-info, #settings-wrapper';
 	//	$(s).css('font-size','2em');
@@ -608,10 +466,11 @@ SVRWebView.prototype.decreaseFontSize = function() {
 SVRWebView.prototype.setCurrentUser = function(u) {
 	var username = this._model.get(u,'username');
 	console.log('SVRWebView setCurrentUser', u, username);
-	$('#user-info').html(username);
+	//$('#user-info').html(username);
 }
 
 SVRWebView.prototype._formatDate = function(d) {
+	console.log('SVRWebView _formatDate',d);
 	var monthNames = [ "January", "February", "March", "April", "May", "June",
     "July", "August", "September", "October", "November", "December" ];
 	var ds = monthNames[d.getMonth()] + ' ' + d.getDate() + ', ' + d.getFullYear();
@@ -619,8 +478,10 @@ SVRWebView.prototype._formatDate = function(d) {
 }
 
 SVRWebView.prototype.setStory = function(s){
-	var title = s.get('title');
-	var author = s.get('author');
+	console.log('SVRWebView setStory', s);
+	var m = this._model;
+	var title = m.get(s, 'title');
+	var author = m.get(s, 'creator'); //TODO Support multiple authors
 	$('#header-title').html(title);
 	
 	var t = title.length > 30 ? title.substring(title, 30) + "..." : title;	
@@ -629,10 +490,10 @@ SVRWebView.prototype.setStory = function(s){
 	
 	$('#info-title').html(t);
 	$('#header-author').html(author);
-	$('#story-text').html(this._model.get(s,'storyText'));
-	$('#header-subtitle').html(this._model.get(s,'subtitle'));
-	var publisher = this._model.get(s, 'publication');
-	var publicationDate = this._model.get(s, 'publicationDate');
+	$('#story-text').html(m.get(s, 'text'));
+	$('#header-subtitle').html(m.get(s,'subtitle'));
+	var publisher = m.get(s, 'publication');
+	var publicationDate = m.get(s, 'publicationDate');
 	console.log('publication info', publisher, publicationDate);
 	if(publisher && publicationDate) {
 		var d = this._formatDate(publicationDate);
@@ -670,6 +531,7 @@ SVRWebView.prototype.setRating = function(rating) {
 		$('#up-button').removeClass('selected');
 		break;
 	default:
+		console.log('rating does not match');
 		$('#up-button').removeClass('selected');
 		$('#down-button').removeClass('selected');
 		break;

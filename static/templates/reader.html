@@ -8,10 +8,11 @@
 		<script src="/js/svr.app.js"></script>
 		<script src="/js/jquery.touchSwipe.min.js"></script>
 		<script src="/js/jquery.animate-colors-min.js"></script>
+		
 		 
 		<script type='text/javascript'>				
 		$(document).ready(function() {		
-			var sc = new SVRController();	
+			var sc = new SVRController({userKey:'{{userKey}}'});	
 		});
 		</script>
 		<meta name="viewport" content="width=550 user-scalable=0"/>
@@ -38,8 +39,8 @@
 			<h1 id='info-title' class='title'></h1>
 		</div>
 		<div id='user-info-wrapper'>
-			<div id='user-info'></div>
-			<div class='logout'>Logout</div>
+			<div id='user-info'>{{userNick}}</div>
+			<div class='logout'><a href='{{logoutUrl}}'>Logout</a></div>
 		</div>
 		<div id='settings-wrapper'>
 			<div id='increase-font-button' class='neutral'>
