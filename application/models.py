@@ -11,26 +11,33 @@ class FirstPub(ndb.Model):
 	issue = ndb.StringProperty()
 	volume = ndb.StringProperty()
 	publisher = ndb.StringProperty()
-	pageViews = ndb.IntegerProperty()	
+	pageViews = ndb.IntegerProperty()
+	comments = ndb.IntegerProperty()	
 	fbShares = ndb.IntegerProperty()
 	tweets = ndb.IntegerProperty()
 	altScore = ndb.IntegerProperty()
 	altInfo = ndb.TextProperty()
 
 class Story(ndb.Model):
-	category = ndb.StringProperty('cat', required=True)
+	category = ndb.StringProperty(required=True)
 	genre = ndb.StringProperty(required=True)
-	language = ndb.StringProperty('l', default='english', required=True)
+	language = ndb.StringProperty(default='english', required=True)
 	title = ndb.StringProperty(required=True)
 	subtitle = ndb.StringProperty()
 	creator = ndb.StringProperty(repeated=True)
 	creatorInfo = ndb.TextProperty()
 	text = ndb.TextProperty(required=True, default='')
-	wordCount = ndb.IntegerProperty('wc')
+	wordCount = ndb.IntegerProperty()
 	firstPub = ndb.StructuredProperty(FirstPub)
 	ratings = ndb.IntegerProperty(default=0, required=True)
-	ratingPoints = ndb.IntegerProperty('rp', default=0, required=True)
+	ratingPoints = ndb.IntegerProperty(default=0, required=True)
 
+class StorySource(ndb.Model):
+	title = ndb.StringProperty(required=True)
+	storyCount = ndb.IntegerProperty(required=True, default=0)
+	wordCount = ndb.IntegerProperty(required=True, default=0)
+	listUrl = ndb.StringProperty()
+	exclusions = ndb.StringProperty(repeated=True)
 
 class User(ndb.Model):
 	email = ndb.StringProperty(required=True)

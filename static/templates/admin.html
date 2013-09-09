@@ -2,5 +2,47 @@
 <html>
 <body>
 	<h1>Admin</h1>
+<h2>Sources</h2>
+<table>
+	<tr>
+		<th>Source</th>
+		<th>Stats</th>
+		<th>Actions</th>
+	</tr>
+	{% for s in sources %}
+	<tr>
+		<td>{{s.title}}</td>
+		<td>{{s.wordCount}} words in {{s.storyCount}} stories, {{s.wps}} wps</td>
+		<td>
+			<a href='/admin?filters=publication={{s.urlSafeTitle}}{{orderString}}'>Filter by Source</a>
+			<a href='/admin/import?reimport=0&sourceKey={{s.urlSafeKey}}{{orderString}}'>Import New Stories</a>
+			<a href='/admin/import?reimport=1&sourceKey={{s.urlSafeKey}}{{orderString}}'>Reimport Stories</a>
+		</td>
+	</tr>
+	{% endfor %}
+</table>
+
+<h2>Stories</h2>
+<table>
+	<tr>
+		<th><a href='/admin?order={% if 'title' in order %}-{% endif %}title{{filterString}}'>Title</a></th>
+		<th><a href='/admin?order={% if 'creator' in order %}-{% endif %}creator{{filterString}}'>Creator</a></th>
+		<th><a href='/admin?order={% if 'wordCount' in order %}-{% endif %}wordCount{{filterString}}'>Word Count</a></th>
+		<th><a href='/admin?order={% if 'publication' in order %}-{% endif %}publication{{filterString}}'>Publication</a></th>
+		<th>Actions</th>
+	</tr>
+	{% for s in stories %}
+	<tr>
+		<td><a href='/admin/preview?storyKey={{s.urlSafeKey}}'>{{ s.title }}</a></td>
+		<td>{{ s.creator}}</td>
+		<td>{{ s.wordCount }}</td>
+		<td>{{ s.publication }}</td>
+		<td>
+			<a href='/admin/import?storyKey={{ s.urlSafeKey }}'>Reimport</a>
+		</td>
+	</tr>
+	{% endfor %}
+</table>
+	
 </body>
 </html>

@@ -52,13 +52,6 @@ def createUser(userId, email, source):
 	}])
 	return u
 
-def moveGID():
-	q = m.User.query()
-	for u in q.fetch():
-		u.gId = u.userId
-		del u._properties['userId']
-		u.put()
-		
 def getCurrentStory(lastOrFurthest='last'):
 	logging.info('getting current story')
 	snQ = m.StreamNode.query(ancestor=user.key)
@@ -135,7 +128,7 @@ def validateStreamNodeParams(p):
 	vp = {}
 	#Make sure this set of params are valid
 	for prop in m.StreamNode._properties:
-		logging.info('validating propery: {0}'.format(prop))
+		#logging.info('validating propery: {0}'.format(prop))
 		if prop in p:
 			if prop == 'storyKey' or prop == 'createdAt':
 				pass
@@ -146,8 +139,7 @@ def validateStreamNodeParams(p):
 				value = p[prop]
 				logging.info('validated streamNode param {0} as {1}'.format(prop, value))
 				vp[prop] =  value
-	return vp	
-			
+	return vp			
 	
 def getStories(anchor, includeAnchor=True, numPrevious=0, numAfter=1, fullText=True):
 	from collections import deque
@@ -214,16 +206,17 @@ def getRecommendations(numTarget):
 	''' TODO: Build More Recommendations, if I run out	'''	
 	return storyList
 
-
 def buildRecommendations(numComplete, numTarget=100, offset=0, clearExisting=False):
 	if clearExisting:
 		clearRecommendations()
 	
 	#Get the list of stories, in order		
 	q = m.Story.query()
-	q = q.order(-m.Story.firstPub.altScore).order(m.Story.firstPub.date)
+	q = q.filter(m.Story.firstPub.publication == 'AE - The Canadian Science Fiction Review')
+	
+	#q = q.order(-m.Story.firstPub.altScore).order(m.Story.firstPub.date)
 	q = addStreamFilters(q)
-
+	q = q.order(-m.Story.wordCount)
 	
 	numResults = 0;
 	recList = []
@@ -292,12 +285,15 @@ def getSNFromStory(s):
 	q = m.StreamNode.query(ancestor=user.key).filter(m.StreamNode.storyKey == s.key)
 	return q.get()
 
+def encodeString(string):
+	#return string
+	return unicode(string).encode('utf-8', 'xmlcharrefreplace')
 
 def toDict(obj):
 	output = {}
 	for p in obj._properties:
 		if hasattr(obj, p):
-			output[p] = unicode(getattr(obj, p)).encode('ascii', 'xmlcharrefreplace')
+			output[p] = encodeString(getattr(obj, p))
 	return output
 	
 def storyToDict(self, sn=None, fullText=True):
@@ -308,9 +304,9 @@ def storyToDict(self, sn=None, fullText=True):
 			if p == 'firstPub':
 				output[p] = toDict(getattr(self,p))
 			elif p == 'creator':
-				output[p] = unicode(getattr(self, p)[0]).encode('ascii', 'xmlcharrefreplace')
+				output[p] = encodeString(getattr(self, p)[0])
 			else:	
-				output[p] = unicode(getattr(self, p)).encode('ascii', 'xmlcharrefreplace')
+				output[p] = encodeString(getattr(self, p))
 	if sn:
 		output['userHistory'] = toDict(sn)
 	if not fullText:
