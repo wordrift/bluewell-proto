@@ -213,7 +213,7 @@ def reimportStory(urlSafeStoryKey):
 	updatedStory = _importStory(story.firstPub.url, source, True)
 	ndb.put_multi([updatedStory, source])
 
-def _getExistingStories(source, first, last):
+def _getExistingStories(source, limit, offset):
 	q = m.Story.query(m.Story.firstPub.publication == source.title)
 	q = q.order(m.Story.title)
 	stories = q.fetch(limit, offset=offset)
@@ -382,11 +382,6 @@ def _parseSoupLightspeed(soup, url, source, s):
 	for t in tags:
 		t.decompose()
 	
-	#Get number of comments
-	commentsString = soup.find('h3',id='comments').get_text().strip().replace('Responses','')[:1]
-	numComments = int(commentsString)
-	response.out.write('comments string: {0} <br/>'.format(encodeString(commentsString)))
-	
 	#Get issue and publication date
 	a = soup.find('ul', class_='buy_list').a
 
@@ -404,7 +399,6 @@ def _parseSoupLightspeed(soup, url, source, s):
 	firstPub = m.FirstPub(
 		url = url
 		, publication = source.title
-		, comments = numComments
 		, date = publicationDate
 		, issue = issue
 	)
@@ -418,6 +412,14 @@ def _parseSoupLightspeed(soup, url, source, s):
 		, wordCount = wordCount
 		, firstPub = firstPub
 	)
+	
+	#Get number of comments
+	commentsTag = soup.find('h3',id='comments')
+	if commentsTag:
+		commentsString = commentsTag.get_text().strip().replace('Responses','')[:1]
+		numComments = int(commentsString)
+		s.firstPub.comments = numComments
+		response.out.write('comments string: {0} <br/>'.format(encodeString(commentsString)))
 	return s
 	
 def _parseSoupNature(soup, url, source, s):
