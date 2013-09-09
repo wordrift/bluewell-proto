@@ -115,11 +115,15 @@ class Stream(webapp2.RequestHandler):
 		
 		self.response.out.write(common.json.dumps(updatedStories))			
 
+class Test(webapp2.RequestHandler):
+	def get(self):
+		self.response.out.write('main Test')
 		
 app = webapp2.WSGIApplication([
     ('/', Home),
     ('/reader',Reader),
-	('/service/stream',Stream)    
+	('/service/stream',Stream),
+	('/admin/updatesources',Test)
 ], debug=True)
 
 def main():
