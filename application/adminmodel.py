@@ -458,6 +458,13 @@ def _parseSoupNature(soup, url, source, s):
 				storyText = 'Story text import failed.<br/>'
 				wordCount = 0
 		
+			creatorInfoDiv = soup.find('div',id='author-affiliations').find('h3')
+			if creatorInfoDiv:
+				creatorInfoDiv.name = 'div'
+				creatorInfo = unicode(creatorInfoDiv)
+			else:
+				creatorInfo = None
+		
 			#Get metrics data		
 			articleId = doi.split('/')[1]
 			metricsUrl = "http://www.nature.com/nature/journal/v"+meta['volume']+"/n"+meta['issue']+"/"+articleId+"/metrics"
@@ -496,6 +503,8 @@ def _parseSoupNature(soup, url, source, s):
 				, wordCount = wordCount
 				, firstPub = firstPub 
 			)
+			if creatorInfo:
+				s.creatorInfo = creatorInfo
 		else:
 			response.out.write('No DOI, skipping<br/>')
 			s = None
