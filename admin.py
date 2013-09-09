@@ -107,6 +107,11 @@ class Preview(webapp2.RequestHandler):
 				if story.firstPub.date:
 					self.response.out.write("Publication Date: {0}</br>".format(story.firstPub.date))
 				self.response.out.write("URL: <a target='_blank' href='{0}'>{0}</a><br/>".format(story.firstPub.url))
+				social = ['fbShares','tweets','comments','altScore']
+				for s in social:
+					if hasattr(story.firstPub, s):
+						self.response.out.write('{0}: {1}<br/>'.format(s, getattr(story.firstPub,s)))
+				
 				if story.text:
 					self.response.out.write(model.encodeString(story.text))
 				if story.creatorInfo:
