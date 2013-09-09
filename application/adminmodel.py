@@ -222,7 +222,7 @@ def _getExistingStories(source, limit, offset):
 		storyList.append({'url':s.firstPub.url, 'wordCount':s.wordCount})
 	return storyList
 
-def _getStoriesFromWeb(source, first, last):
+def _getStoriesFromWeb(source, first=0, last=20):
 	if source.title == AE:
 		return _getStoryListAE(source.listUrl, first, last)
 	elif source.title == LIGHTSPEED:
@@ -237,7 +237,7 @@ def _getStoryListAE(url, firstPage=0, lastPage=8):
 	urlBase = 'http://aescifi.ca'
 	storyList = []
 	for i in range(firstPage,lastPage):
-		r = requests.get("http://aescifi.ca/index.php/fiction?start="+str(i))
+		r = requests.get("http://aescifi.ca/index.php/fiction?start="+str(i*pageSize))
 		indexSoup = BeautifulSoup(r.text)		
 		stories = indexSoup.find_all('a',class_='contentpagetitle')
 		if stories:
@@ -246,11 +246,8 @@ def _getStoryListAE(url, firstPage=0, lastPage=8):
 	return storyList
 
 def _getStoryListLightspeed(url, firstPage=1, lastPage=16):
-	pageSize = 9
 	stories = None
-	#urlBase = 'http://aescifi.ca'
 	storyList = []
-	pageCount = 0
 	for i in range(firstPage, lastPage):
 		if i > 1:
 			r = requests.get("{0}page/{1}".format(url, i))
@@ -356,7 +353,8 @@ def _parseSoupAE(soup, url, source, s):
 	commentParent = soup.find('div',id='comments-list-0')
 	if commentParent:
 		numComments = 0
-		for d in commentParent.children:
+		for d in commentParent.find_all('div', recursive=False):
+			logging.info('got comment tag: {0}'.format(d))
 			numComments += 1
 		s.firstPub.comments = numComments
 	
