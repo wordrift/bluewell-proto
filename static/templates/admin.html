@@ -3,6 +3,8 @@
 <body>
 	<h1>Admin</h1>
 <h2>Sources</h2>
+<a href='/admin/recount'>Recount</a>
+<a href='/admin/updatesources'>Update Sources</a>
 <table>
 	<tr>
 		<th>Source</th>
@@ -17,6 +19,7 @@
 			<a href='/admin?filters=publication={{s.urlSafeTitle}}{{orderString}}'>Filter by Source</a>
 			<a href='/admin/import?reimport=0&sourceKey={{s.urlSafeKey}}{{orderString}}'>Import New Stories</a>
 			<a href='/admin/import?reimport=1&sourceKey={{s.urlSafeKey}}{{orderString}}'>Reimport Stories</a>
+			<a href='/admin/delete?sourceKey={{s.urlSafeKey}}'>Delete Stories</a>
 		</td>
 	</tr>
 	{% endfor %}
