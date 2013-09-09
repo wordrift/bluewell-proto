@@ -21,17 +21,27 @@ def clearDataStore(kind):
 def importStories(r, limit=400, skip=0, overwrite=False):
 
 	storyList = Story.Query.all().order_by('title').limit(limit).skip(skip)
-	i = 0
+	storyCount = 0
+	wordCount = 0
 	r.out.write('got stories from parse, overwrite='+str(overwrite)+'<br/>')
 	targetList = []
 	for s in storyList:
-		i += 1
-		r.out.write(str(i) +'. ')
+		storyCount += 1
+		r.out.write(str(storyCount) +'. ')
 		story = processStory(s, r, overwrite)
 		if story:
 			targetList.append(story)
-	if(i>0):
+			wordCount += story.wordCount
+	
+	if(storyCount>0):
+		source = db.StorySource(
+			title = 'Nature',
+			storyCount = storyCount,
+			wordCount = wordCount
+		)
+		targetList.append(source)
 		ndb.put_multi(targetList)
+	
 	r.out.write('end of importStories<br/>')
 
 def processStory(s, r, overwrite):

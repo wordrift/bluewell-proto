@@ -29,6 +29,11 @@ def setupSources():
 			'title': 'AE - The Canadian Science Fiction Review',
 			'listUrl':'http://aescifi.ca/index.php/fiction',
 			'exclusions': ['AE Micro 2013', 'The Experiment']
+		},
+		{
+			'title':'Lightspeed Science Fiction & Fantasy',
+			'listUrl': 'http://www.lightspeedmagazine.com/category/fiction/science-fiction/',
+			'exclusions':[]
 		}
 	]
 	
@@ -204,6 +209,8 @@ def _getExistingStories(source, limit, offset):
 def _getStoriesFromWeb(source, limit, offset):
 	if source.title == 'AE - The Canadian Science Fiction Review':
 		return _getStoryListAE(source.listUrl, limit, offset)
+	elif source.title == 'Lightspeed Science Fiction & Fantasy':
+		return _getStoryListLightspeed(source.listUrl, limit, offset)
 	
 
 def _importStory(url, source, overwrite):
@@ -224,6 +231,22 @@ def _getStoryListAE(url, limit, pageOffset=0):
 		if stories:
 			for s in stories:
 				storyList.append({'url':urlBase+str(s['href'])})
+	return storyList
+
+def _getStoryListLightspeed(url, limit, pageOffset=0):
+	pageSize = 9
+	stories = None
+	#urlBase = 'http://aescifi.ca'
+	storyList = []
+	for i in range(pageOffset,8):
+		n = i * pageSize
+		r = requests.get("{0}page/{1}".format(url, i))
+		indexSoup = BeautifulSoup(r.text)		
+		stories = indexSoup.find_all('a',rel='bookmark')
+		if stories:
+			for s in stories:
+				logging.info(str(s['href']))
+				storyList.append({'url':str(s['href'])})
 	return storyList
 
 def encodeString(string):
