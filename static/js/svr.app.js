@@ -229,6 +229,7 @@ SVRModel.prototype.get = function(object, property) {
 		v = object[property];
 		break;	
 	}
+	if(v == 'None') {v = '';}
 	return v;
 }
 
@@ -253,6 +254,9 @@ SVRModel.prototype._processStoryResults = function(results) {
 	for (i in results) {
 		console.log('SVRModel _processStoryResults', i, results[i], this.get(results[i], 'publicationDate'));
 		var d = this._dateStringToObject(this.get(results[i],'publicationDate'));
+		if(isNaN(d)) {
+			d = null;
+		}
 		this.set(results[i], 'publicationDate', d);
 		
 		if(results[i]['userHistory']) {
@@ -486,8 +490,7 @@ SVRWebView.prototype.setStory = function(s){
 	
 	var t = title.length > 30 ? title.substring(title, 30) + "..." : title;	
 	//var a = author.length > 10? author.substring(author, 10) + '...' : author;
-
-	
+	$('#creator-info').html(m.get(s, 'creatorInfo'));	
 	$('#info-title').html(t);
 	$('#header-author').html(author);
 	$('#story-text').html(m.get(s, 'text'));
@@ -499,7 +502,7 @@ SVRWebView.prototype.setStory = function(s){
 		var d = this._formatDate(publicationDate);
 		$('#publication-info').html('Originally published by ' + publisher + ' on ' + d +'.');
 	} else if(publisher) {
-		('#publication-info').html('Originally published by ' + publisher + '.');
+		$('#publication-info').html('Originally published by ' + publisher + '.');
 	} else if(publicationDate) {
 		var d = this._formatDate(publicationDate);
 		$('#publication-info').html('Originally published on ' + d +'.');
