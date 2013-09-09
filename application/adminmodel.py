@@ -237,7 +237,7 @@ def _getStoryListAE(url, firstPage=0, lastPage=8):
 	urlBase = 'http://aescifi.ca'
 	storyList = []
 	for i in range(firstPage,lastPage):
-		r = requests.get("http://aescifi.ca/index.php/fiction?start="+str(n))
+		r = requests.get("http://aescifi.ca/index.php/fiction?start="+str(i))
 		indexSoup = BeautifulSoup(r.text)		
 		stories = indexSoup.find_all('a',class_='contentpagetitle')
 		if stories:
@@ -340,7 +340,6 @@ def _parseSoupAE(soup, url, source, s):
 	firstPub = m.FirstPub (
 		 url = url
 		, publication = source.title
-		, comments = 0
 	)
 	s.populate(
 		category = 'fiction'
@@ -352,6 +351,15 @@ def _parseSoupAE(soup, url, source, s):
 		, wordCount = wordCount			
 		, firstPub = firstPub
 	)
+	
+	#Get number of comments
+	commentParent = soup.find('div',id='comments-list-0')
+	if commentParent:
+		numComments = 0
+		for d in commentParent.children:
+			numComments += 1
+		s.firstPub.comments = numComments
+	
 	return s	
 
 def _parseSoupLightspeed(soup, url, source, s):
