@@ -14,7 +14,7 @@ handlers:
 - url: /images
   static_dir: static/images
 
-- url: /admin
+- url: /admin.*
   script: admin.app
 
 - url: /.*
