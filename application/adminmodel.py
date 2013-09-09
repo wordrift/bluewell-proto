@@ -8,6 +8,7 @@ import requests
 import re
 from bs4 import BeautifulSoup
 import html5lib
+import datetime
 
 request = None
 response = None
@@ -175,14 +176,14 @@ def clearDataStore(kind, publication=None):
 	stories = q.fetch(keys_only=True)
 	ndb.delete_multi(stories)
 
-def importStories(sourceKey, limit=None, offset=0, reimport=False):
+def importStories(sourceKey, first=0, last=0, reimport=False):
 
 	source = ndb.Key(urlsafe=sourceKey).get()
-	response.out.write("Starting import stories, source: {0}, limit: {1}, offset: {2}, reimport: {3} <br/>".format(source.title, limit, offset, reimport))
+	response.out.write("Starting import stories, source: {0}, first: {1}, last: {2}, reimport: {3} <br/>".format(source.title, first, last, reimport))
 	if reimport:
-		storyList = _getExistingStories(source, limit, offset)
+		storyList = _getExistingStories(source, first, last)
 	else:
-		storyList = _getStoriesFromWeb(source, limit, offset)
+		storyList = _getStoriesFromWeb(source, first, last)
 	response.out.write('Got list of story urls. Stories: {0}<br/>'.format(len(storyList)))
 	updateList = []
 	storyCount = 0
@@ -212,7 +213,7 @@ def reimportStory(urlSafeStoryKey):
 	updatedStory = _importStory(story.firstPub.url, source, True)
 	ndb.put_multi([updatedStory, source])
 
-def _getExistingStories(source, limit, offset):
+def _getExistingStories(source, first, last):
 	q = m.Story.query(m.Story.firstPub.publication == source.title)
 	q = q.order(m.Story.title)
 	stories = q.fetch(limit, offset=offset)
@@ -221,20 +222,21 @@ def _getExistingStories(source, limit, offset):
 		storyList.append({'url':s.firstPub.url, 'wordCount':s.wordCount})
 	return storyList
 
-def _getStoriesFromWeb(source, limit, offset):
+def _getStoriesFromWeb(source, first, last):
 	if source.title == AE:
-		return _getStoryListAE(source.listUrl, limit, offset)
+		return _getStoryListAE(source.listUrl, first, last)
 	elif source.title == LIGHTSPEED:
-		return _getStoryListLightspeed(source.listUrl, limit, offset)
+		return _getStoryListLightspeed(source.listUrl, first, last)
+	elif source.title == NATURE:
+		return _getStoryListNature(source.listUrl, first, last)
 
-def _getStoryListAE(url, limit, pageOffset=0):
+def _getStoryListAE(url, firstPage=0, lastPage=8):
 	#Get links to all the stories we're going to import
 	pageSize = 9
 	stories = None
 	urlBase = 'http://aescifi.ca'
 	storyList = []
-	for i in range(pageOffset,8):
-		n = i * pageSize
+	for i in range(firstPage,lastPage):
 		r = requests.get("http://aescifi.ca/index.php/fiction?start="+str(n))
 		indexSoup = BeautifulSoup(r.text)		
 		stories = indexSoup.find_all('a',class_='contentpagetitle')
@@ -243,28 +245,26 @@ def _getStoryListAE(url, limit, pageOffset=0):
 				storyList.append({'url':urlBase+str(s['href'])})
 	return storyList
 
-def _getStoryListLightspeed(url, limit, pageOffset=0):
+def _getStoryListLightspeed(url, firstPage=1, lastPage=16):
 	pageSize = 9
 	stories = None
 	#urlBase = 'http://aescifi.ca'
 	storyList = []
 	pageCount = 0
-	for i in range(1+pageOffset,16):
-		n = i * pageSize
-		if limit == None or pageCount < limit:
-			pageCount +=1
-			if i > 1:
-				r = requests.get("{0}page/{1}".format(url, i))
-			else:
-				r = requests.get(url)
-			indexSoup = BeautifulSoup(r.text)
-			for t in indexSoup.find_all('h2', class_='posttitle'):		
-				s = t.find('a',rel='bookmark')
-				if s:
-					storyList.append({'url':str(s['href'])})
+	for i in range(firstPage, lastPage):
+		if i > 1:
+			r = requests.get("{0}page/{1}".format(url, i))
 		else:
-			response.out.write('page index outside of limit range, limit:{0}<br/>'.format(limit))				
+			r = requests.get(url)
+		indexSoup = BeautifulSoup(r.text)
+		for t in indexSoup.find_all('h2', class_='posttitle'):		
+			s = t.find('a',rel='bookmark')
+			if s:
+				storyList.append({'url':str(s['href'])})
 	return storyList	
+
+def _getStoryListNature(url, limit, offset=0):
+	pass
 
 def _importStory(url, source, overwrite):
 	response.out.write('trying to get story from: {0}<br/>'.format(url))
@@ -297,6 +297,8 @@ def _storyEntityFromSoup(soup, url, source, s):
 		return _parseSoupAE(soup, url, source, s)
 	elif source.title == LIGHTSPEED:
 		return _parseSoupLightspeed(soup, url, source, s)
+	elif source.title == NATURE:
+		return _parseSoupNature(soup, url, source, s)
 		
 def _titleFromSoup(soup, source):
 	title = None
@@ -304,6 +306,8 @@ def _titleFromSoup(soup, source):
 		title = soup.find('title').get_text().strip()
 	elif source.title == LIGHTSPEED:
 		title = soup.find('h1', class_='posttitle').get_text().strip()
+	elif source.title == NATURE:
+		pass
 	return title
 		
 def _parseSoupAE(soup, url, source, s):
@@ -371,22 +375,53 @@ def _parseSoupLightspeed(soup, url, source, s):
 	storyText = unicode(story)
 	wordCount = len(storyText.split(None))	
 	
+	#Get author info
+	creatorInfo = soup.find('div', id="about_author")
+	logging.info('got creator info tag')
+	tags = creatorInfo.find_all(['h2', 'h3', 'ul'])
+	for t in tags:
+		t.decompose()
+	
+	#Get number of comments
+	commentsString = soup.find('h3',id='comments').get_text().strip().replace('Responses','')[:1]
+	numComments = int(commentsString)
+	response.out.write('comments string: {0} <br/>'.format(encodeString(commentsString)))
+	
+	#Get issue and publication date
+	a = soup.find('ul', class_='buy_list').a
+
+	href = a['href']
+	logging.info(unicode(href))
+	info = a['href'].split('/')[4].split('-')
+	logging.info(info)
+
+	dateString = "{0} 01 {1}".format(info[0].title(), info[1])
+	logging.info(dateString)
+	publicationDate = parser.parse(dateString)
+	issue = info[3]	
+	response.out.write('processed info: {0} / {1} <br/>'.format(publicationDate, issue))
+	
 	firstPub = m.FirstPub(
 		url = url
 		, publication = source.title
+		, comments = numComments
+		, date = publicationDate
+		, issue = issue
 	)
 	s.populate(
 		category = 'fiction'
 		, genre = 'sci-fi'
 		, language = 'english'
 		, creator = creator
+		, creatorInfo = unicode(creatorInfo)
 		, text = storyText
 		, wordCount = wordCount
 		, firstPub = firstPub
 	)
 	return s
 	
-
+def _parseSoupNature(soup, url, source, s):
+	pass
 	
 	
 		
