@@ -19,7 +19,9 @@ header {
 }
 
 header h1 {
-	width:100%;
+	width:80%;
+	margin-left:10%;
+	margin-right:10%;
 	text-align:center;
 }
 
@@ -41,7 +43,15 @@ header h1 {
 	padding-top:10px;
 	margin:25px;
 	margin-top:0px;
+	margin-bottom:0px;
 	width:550px;
+}
+
+#story-footer {
+	padding: 25px;
+	margin: 0 5%;
+	font-style: oblique;
+	border-top:2px solid black;
 }
 
 #site-logo {
