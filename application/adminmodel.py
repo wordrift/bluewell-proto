@@ -12,28 +12,37 @@ import html5lib
 request = None
 response = None
 
+AE = 'AE - The Canadian Science Fiction Review'
+NATURE = 'Nature'
+LIGHTSPEED = 'Lightspeed Science Fiction & Fantasy'
+
 def setup(req, res):
 	global request
 	global response
 	request = req
 	response = res
 
-def setupSources():
+def encodeString(string):
+	#return string
+	return unicode(string).encode('utf-8', 'xmlcharrefreplace')
+				
+
+def updateSources():
 	sources = [
 		{
-			'title':'Nature',
+			'title': NATURE,
 			'listUrl':'http://www.nature.com/nature/focus/arts/futures/',
 			'exclusions':[]		
 		},
 		{
-			'title': 'AE - The Canadian Science Fiction Review',
+			'title': AE,
 			'listUrl':'http://aescifi.ca/index.php/fiction',
 			'exclusions': ['AE Micro 2013', 'The Experiment']
 		},
 		{
-			'title':'Lightspeed Science Fiction & Fantasy',
+			'title':LIGHTSPEED,
 			'listUrl': 'http://www.lightspeedmagazine.com/category/fiction/science-fiction/',
-			'exclusions':[]
+			'exclusions':['Beachworld']
 		}
 	]
 	
@@ -59,27 +68,37 @@ def setupSources():
 
 	if len(updateList) > 0:
 		ndb.put_multi(updateList)	
+	sourceRecount()
 
 def getSources():
 	q = m.StorySource.query()
 	sources = q.fetch()
 	return sources
 
-def sourceRecount():
-	sourceQ = m.StorySource.query()
-	updateList = []
-	for source in sourceQ.fetch():
-		wordCount = 0
-		storyCount = 0
-		q = m.Story.query(m.Story.firstPub.publication == source.title)
-		for s in q.fetch():
-			if s.title not in source.exclusions:
-				storyCount +=1
+def sourceRecount(source = None):
+	if not source:
+		sourceQ = m.StorySource.query()
+		updateList = []
+		for source in sourceQ.fetch():
+			source = _countSourceStats(source)
+			updateList.append(source)
+		ndb.put_multi(updateList)
+	else:
+		source = _countSourceStats(source)
+		source.put()
+
+def _countSourceStats(source):
+	wordCount = 0
+	storyCount = 0
+	q = m.Story.query(m.Story.firstPub.publication == source.title)
+	for s in q.fetch():
+		if s.title not in source.exclusions:
+			storyCount +=1
+			if hasattr(s, 'wordCount') and s.wordCount:
 				wordCount += s.wordCount
-		source.storyCount = storyCount
-		source.wordCount = wordCount
-		updateList.append(source)
-	ndb.put_multi(updateList)
+	source.storyCount = storyCount
+	source.wordCount = wordCount
+	return source
 		
 def clearDataStore(kind):
 	q = ndb.Query(kind=kind)
@@ -149,9 +168,10 @@ def futures_name_map(old_name):
 	m['prism.rightsAgent']='publicationRightsAgent'
 	return m[old_name]
 
-def clearDataStore(kind, publication):
+def clearDataStore(kind, publication=None):
 	q = ndb.Query(kind=kind)
-	q = q.filter(m.Story.firstPub.publication == publication)
+	if kind == 'Story' and publication:
+		q = q.filter(m.Story.firstPub.publication == publication)
 	stories = q.fetch(keys_only=True)
 	ndb.delete_multi(stories)
 
@@ -167,35 +187,30 @@ def importStories(sourceKey, limit=None, offset=0, reimport=False):
 	updateList = []
 	storyCount = 0
 	for s in storyList:
-		if limit == None or storyCount < limit:
-			storyEntity = _importStory(s['url'], source, reimport)
+		storyEntity = _importStory(s['url'], source, reimport)
 			
-			if storyEntity:
-				storyCount +=1
-				updateList.append(storyEntity)
-				response.out.write('Got a story to update: {0}<br/>'.format(encodeString(storyEntity.title)))
-				if reimport:
-					source.wordCount = source.wordCount - s['wordCount'] + storyEntity.wordCount
-				else:
-					source.storyCount += 1
-					source.wordCount += storyEntity.wordCount
-			else:
-				response.out.write('No story entity returned <br/>')
+		if storyEntity:
+			storyCount +=1
+			updateList.append(storyEntity)
+			response.out.write('Got a story to update: {0}<br/>'.format(encodeString(storyEntity.title)))
+			if not reimport:
+				source.storyCount += 1
 		else:
-			response.out.write('storyCount {0} greater than limit {1}<br/>'.format(storyCount, limit))
+			response.out.write('No story entity returned <br/>')
 
 	if len(updateList) > 0:
 		updateList.append(source)
 		ndb.put_multi(updateList)
+		sourceRecount(source)
 	response.out.write('Story import complete. Updated {0} stories.<br/>Source: {1}<br/>'.format(storyCount, source))
-	response.out.write('<a href="/admin">Return to Admin Home</a>')
 
 def reimportStory(urlSafeStoryKey):
 	storyKey = ndb.Key(urlsafe=urlSafeStoryKey)
 	story = storyKey.get()
-	q = m.StorySources.query(m.StorySource.title == story.firstPub.publication)
+	q = m.StorySource.query(m.StorySource.title == story.firstPub.publication)
 	source = q.get()
-	_importStory(source, story)
+	updatedStory = _importStory(story.firstPub.url, source, True)
+	ndb.put_multi([updatedStory, source])
 
 def _getExistingStories(source, limit, offset):
 	q = m.Story.query(m.Story.firstPub.publication == source.title)
@@ -207,15 +222,10 @@ def _getExistingStories(source, limit, offset):
 	return storyList
 
 def _getStoriesFromWeb(source, limit, offset):
-	if source.title == 'AE - The Canadian Science Fiction Review':
+	if source.title == AE:
 		return _getStoryListAE(source.listUrl, limit, offset)
-	elif source.title == 'Lightspeed Science Fiction & Fantasy':
+	elif source.title == LIGHTSPEED:
 		return _getStoryListLightspeed(source.listUrl, limit, offset)
-	
-
-def _importStory(url, source, overwrite):
-	if source.title == 'AE - The Canadian Science Fiction Review':
-		return _importStoryFromAE(url, source, overwrite)
 
 def _getStoryListAE(url, limit, pageOffset=0):
 	#Get links to all the stories we're going to import
@@ -238,93 +248,143 @@ def _getStoryListLightspeed(url, limit, pageOffset=0):
 	stories = None
 	#urlBase = 'http://aescifi.ca'
 	storyList = []
-	for i in range(pageOffset,8):
+	pageCount = 0
+	for i in range(1+pageOffset,16):
 		n = i * pageSize
-		r = requests.get("{0}page/{1}".format(url, i))
-		indexSoup = BeautifulSoup(r.text)		
-		stories = indexSoup.find_all('a',rel='bookmark')
-		if stories:
-			for s in stories:
-				logging.info(str(s['href']))
-				storyList.append({'url':str(s['href'])})
-	return storyList
+		if limit == None or pageCount < limit:
+			pageCount +=1
+			if i > 1:
+				r = requests.get("{0}page/{1}".format(url, i))
+			else:
+				r = requests.get(url)
+			indexSoup = BeautifulSoup(r.text)
+			for t in indexSoup.find_all('h2', class_='posttitle'):		
+				s = t.find('a',rel='bookmark')
+				if s:
+					storyList.append({'url':str(s['href'])})
+		else:
+			response.out.write('page index outside of limit range, limit:{0}<br/>'.format(limit))				
+	return storyList	
 
-def encodeString(string):
-	#return string
-	return unicode(string).encode('utf-8', 'xmlcharrefreplace')
-				
-def _importStoryFromAE(url, source, overwrite=False):
+def _importStory(url, source, overwrite):
 	response.out.write('trying to get story from: {0}<br/>'.format(url))
-
 	r1 = requests.get(url)
 	r1.encoding = 'UTF-8'
 	soup = BeautifulSoup(r1.text, "html5lib")
-
+	
 	s = None
-	title = soup.find('title').get_text().strip()
-	if title in source.exclusions:
-		response.out.write('Story: {0} is in exclusions list, skipping<br/>'.format(encodeString(title)))
-	else:
-		creator = [soup.find("span",class_="author").get_text().strip()]
-	
-		response.out.write('importing story, title: {0}<br/>'.format(encodeString(title)))
-	
+	title = _titleFromSoup(soup, source)
+	if title not in source.exclusions:
 		q = m.Story.query().filter(m.Story.title == title, m.Story.firstPub.publication == source.title)
 		existingStory = q.get()
-		
 		if not existingStory:
 			s = m.Story()
 		elif overwrite:
 			s = existingStory
-	
+
 		if s:
-			storyRoot = soup.find('td', class_='mainarticle')
-			story = storyRoot.extract()
-			
-			for i in story('img'):
-				i.decompose()
-				
-			for t in story.find_all():
-				text = t.renderContents()
-				if 'illustration by' in text:
-					t.decompose()
-			
-			creatorInfo = ''
-			hr = story.find('hr')			
-			if hr:
-				creatorInfoTag = hr.find_next('p')
-				if not creatorInfoTag:
-					creatorInfoTag = hr.find_next('i')
-				if creatorInfoTag:
-					creatorInfo = creatorInfoTag.get_text()
-					creatorInfoTag.decompose()
-				hr.decompose()	
-			
-			#response.out.write('got creatorInfo {0}'.format(unicode(creatorInfo)))
-				
-			storyText = unicode(story)
-			wordCount = len(storyText.split(None))	
-			
-			firstPub = m.FirstPub (
-				 url = url
-				, publication = source.title
-				, comments = 0
-			)
-			s.populate(
-				category = 'fiction'
-				, genre = 'sci-fi'
-				, language = 'english'
-				, title = title
-				, creator = creator
-				, creatorInfo = creatorInfo
-				, text = storyText
-				, wordCount = wordCount			
-				, firstPub = firstPub
-			)
+			s.title = title	
+			s = _storyEntityFromSoup(soup, url, source, s)
+			response.out.write('imported story: {0}<br/>'.format(encodeString(title)))		
 		else:
-			response.out.write('skipping story, already exists: {0} - {1} <br/>'.format(title, source.title))
+			response.out.write('skipping story, already exists: {0} - {1} <br/>'.format(encodeString(title), source.title))
+	else:
+		response.out.write('Story: {0} is in exclusions list, skipping<br/>'.format(encodeString(title)))
 	return s	
 
+def _storyEntityFromSoup(soup, url, source, s):
+	if source.title == AE:	
+		return _parseSoupAE(soup, url, source, s)
+	elif source.title == LIGHTSPEED:
+		return _parseSoupLightspeed(soup, url, source, s)
+		
+def _titleFromSoup(soup, source):
+	title = None
+	if source.title == AE:
+		title = soup.find('title').get_text().strip()
+	elif source.title == LIGHTSPEED:
+		title = soup.find('h1', class_='posttitle').get_text().strip()
+	return title
+		
+def _parseSoupAE(soup, url, source, s):
+	creator = [soup.find("span",class_="author").get_text().strip()]
+	storyRoot = soup.find('td', class_='mainarticle')
+	story = storyRoot.extract()
+	
+	for i in story('img'):
+		i.decompose()
+		
+	for t in story.find_all():
+		text = t.renderContents()
+		if 'illustration by' in text:
+			t.decompose()
+			
+	creatorInfo = ''
+	hr = story.find('hr')			
+	if hr:
+		creatorInfoTag = hr.find_next('p')
+		if not creatorInfoTag:
+			creatorInfoTag = hr.find_next('i')
+		if creatorInfoTag:
+			creatorInfo = creatorInfoTag.get_text()
+			creatorInfoTag.decompose()
+		hr.decompose()	
+	
+	storyText = unicode(story)
+	wordCount = len(storyText.split(None))	
+	
+	firstPub = m.FirstPub (
+		 url = url
+		, publication = source.title
+		, comments = 0
+	)
+	s.populate(
+		category = 'fiction'
+		, genre = 'sci-fi'
+		, language = 'english'
+		, creator = creator
+		, creatorInfo = creatorInfo
+		, text = storyText
+		, wordCount = wordCount			
+		, firstPub = firstPub
+	)
+	return s	
+
+def _parseSoupLightspeed(soup, url, source, s):
+	creator = [soup.find('a',class_='author').get_text()]
+	logging.info('got creator: {0}<br/>'.format(creator))
+	
+	storyRoot = soup.find('div', class_='entry-content')
+	del storyRoot['class']
+	story = storyRoot.extract()
+
+	d = story.find('div', class_='callout')
+	d.decompose()
+	d = story.find('iframe')
+	d.decompose()
+	
+	for p in story.find_all('p'):
+		if (p.has_attr('id') and p['id'] == 'tags') or (p.has_attr('align') and p['align']=='center') \
+		or (p.has_attr('style') and 'text-align:center' in p['style']):
+			p.decompose()
+
+	storyText = unicode(story)
+	wordCount = len(storyText.split(None))	
+	
+	firstPub = m.FirstPub(
+		url = url
+		, publication = source.title
+	)
+	s.populate(
+		category = 'fiction'
+		, genre = 'sci-fi'
+		, language = 'english'
+		, creator = creator
+		, text = storyText
+		, wordCount = wordCount
+		, firstPub = firstPub
+	)
+	return s
 	
 
 	
