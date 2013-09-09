@@ -5,7 +5,7 @@ sys.path.insert(0, lib_path)
 
 from google.appengine.ext.webapp import template
 from google.appengine.api import users
-from application import model
+from application import adminmodel as model
 import webapp2
 from application import common
 import re
@@ -13,7 +13,7 @@ import logging
 
 tpath = os.path.join(os.path.dirname(__file__), 'static/templates/')
 
-class Admin(webapp2.RequestHandler):
+class Home(webapp2.RequestHandler):
 	def get(self):
 		from application import adminmodel as model
 		import urllib
@@ -66,8 +66,6 @@ class Admin(webapp2.RequestHandler):
 		logging.info('orderString: {0}'.format(template_values['orderString']))
 		self.response.out.write(template.render(tpath+'admin.html', template_values))
 
-
-
 class BuildRecommendations(webapp2.RequestHandler):
 	def get(self):
 		gUser = users.get_current_user()
@@ -88,7 +86,7 @@ class ResetDataStore(webapp2.RequestHandler):
 		model.clearDataStore('StreamNode')
 		model.clearDataStore('Story')
 
-class AdminPreview(webapp2.RequestHandler):
+class Preview(webapp2.RequestHandler):
 	def get(self):
 		urlSafeStoryKey = common.getValidatedParam(self.request, self.response, 'storyKey', None, None)
 		
@@ -100,9 +98,15 @@ class AdminPreview(webapp2.RequestHandler):
 				self.response.out.write("<a href='/admin/import?storyKey={0}'>Reimport Story</a>".format(urlSafeStoryKey))
 				self.response.out.write("<br/>")
 				self.response.out.write("<!DOCTYPE html><html><head><meta charset='utf-8'/></head><body style='width:550px;border:1px solid black; padding:25px;'>")			
-				self.response.out.write("Title: {0}<br/> Author: {1}<br/> Publication: {2}<br/> Word Count: {3}<br/>".format(story.title, story.creator[0], story.firstPub.publication, story.wordCount))
+				self.response.out.write("Title: {0}<br/>".format(model.encodeString(story.title)))
+				if story.creator and story.creator[0]:
+					self.response.out.write("Author: {0}<br/>".format(story.creator[0]))	
+				if story.wordCount:		
+					self.response.out.write("Word Count: {0}<br/>".format(story.wordCount))
+				self.response.out.write("Publication: {0}<br/>".format(story.firstPub.publication))
 				self.response.out.write("URL: <a target='_blank' href='{0}'>{0}</a><br/>".format(story.firstPub.url))
-				self.response.out.write(story.text)
+				if story.text:
+					self.response.out.write(story.text)
 				self.response.out.write("</body></html>")
 			else:
 				self.response.out.write('Invalid storyKey provided')
@@ -110,12 +114,10 @@ class AdminPreview(webapp2.RequestHandler):
 			self.response.out.write('No storyKey provided')	
 		self.response.out.write("<a href='/admin'>Return to Admin Home</a>")
 			
-
 class ImportStories(webapp2.RequestHandler):
 	def get(self):
 		from application import adminmodel as model
 		model.setup(self.request, self.response)
-		model.setupSources()
 		sourceKey = common.getValidatedParam(self.request, self.response, 'sourceKey', None, None)
 		storyKey = common.getValidatedParam(self.request, self.response, 'storyKey', None, None)
 
@@ -124,33 +126,61 @@ class ImportStories(webapp2.RequestHandler):
 			from application import adminmodel as model
 			model.setup(self.request, self.response)
 			model.reimportStory(storyKey)
-			#self.redirect('/admin?m=ImportedStory')
+			self.response.out.write('<a href="/admin">Return to Admin Home</a>')
 		elif sourceKey:
 			limit = common.getValidatedParam(self.request, self.response, 'limit', None, 'number')
 			reimport = common.getValidatedParam(self.request, self.response, 'reimport', False, 'bool')
 			offset = common.getValidatedParam(self.request, self.response, 'offset', 0, 'number')
 			model.importStories(sourceKey, limit, offset, reimport)
+			self.response.out.write('<a href="/admin">Return to Admin Home</a>')
 		else:
 			self.response.out.write('No storyKey provided. Could not reimport story <br/> requestUri: {0}'.format(self.request.url))
 	
-class AdminRecount(webapp2.RequestHandler):
+class Recount(webapp2.RequestHandler):
 	def get(self):
-		from application import adminmodel as model
 		model.setup(self.request, self.response)
 		model.sourceRecount()
 
+class UpdateSources(webapp2.RequestHandler):
+	def get(self):
+		model.updateSources()
+
+class Delete(webapp2.RequestHandler):
+	def get(self):
+		urlSafeSourceKey = common.getValidatedParam(self.request, self.response, 'sourceKey',None, None)
+		if urlSafeSourceKey:
+			sourceKey = model.ndb.Key(urlsafe=urlSafeSourceKey)
+			source = sourceKey.get()
+			if source:
+				model.clearDataStore('Story', source.title)
+				source.storyCount = 0
+				source.wordCount = 0
+				source.put()
+				self.response.out.write('Deleted all stories from: {0}</br>'.format(source.title))
+			else:
+				self.response.out.write('Invalid source key recieved.')
+		else:
+			self.response.out.write('No source key passed in.<br/>')	
+		self.response.out.write('<a href="/admin">Return to Admin Home</a>')
+
 app = webapp2.WSGIApplication([
-	('/admin',Admin),
-	('/admin/preview', AdminPreview),
+	('/admin',Home),
+	('/admin/preview', Preview),
 	('/admin/import',ImportStories),
-	('/admin/reset',ResetDataStore),
-	('/admin/recount',AdminRecount),
-	('/admin/buildrecs',BuildRecommendations) 
+#	('/admin/reset',ResetDataStore),
+	('/admin/delete', Delete),	
+	('/admin/recount',Recount),
+	('/admin/buildrecs',BuildRecommendations),
+	('/admin/updatesources', UpdateSources)
 ], debug=True)
 			
 def main():
-    app.run()
+	logging.info('strong again, like me')
+	app.run()
 
 if __name__ == "__main__":
-    main()
+	logging.info('all monkeys are french')
+	main()
+
+
     	
