@@ -158,18 +158,39 @@ class Delete(webapp2.RequestHandler):
 	def get(self):
 		urlSafeSourceKey = common.getValidatedParam(self.request, self.response, 'sourceKey',None, None)
 		if urlSafeSourceKey:
-			sourceKey = model.ndb.Key(urlsafe=urlSafeSourceKey)
-			source = sourceKey.get()
+			source = model.ndb.Key(urlsafe=urlSafeSourceKey).get()
 			if source:
-				model.clearDataStore('Story', source.title)
-				source.storyCount = 0
-				source.wordCount = 0
-				source.put()
-				self.response.out.write('Deleted all stories from: {0}</br>'.format(source.title))
+				s = "<!DOCTYPE html><html><body><form action='/admin/delete' method='POST'>"
+				s += "You are about to delete all stories imported from {0}<br/>".format(source.title)
+				s += "To proceed, enter 'DELETE' (all caps) below and submit<br/>"
+				s +="<input type='text' name='confirm' autocomplete='off'/><input type='submit'/><input name='sourceKey' type='hidden' value='{0}'/>".format(urlSafeSourceKey)
+				s +="</form></body</html>"
+				self.response.out.write(s)
 			else:
-				self.response.out.write('Invalid source key recieved.')
+				response.out.write('Invalid source key passed in.<br/>')
 		else:
-			self.response.out.write('No source key passed in.<br/>')	
+			self.response.out.write('No source key passed in.<br/>')
+		self.response.out.write('<a href="/admin">Return to Admin Home</a>')
+		
+	def post(self):
+		urlSafeSourceKey = common.getValidatedParam(self.request, self.response, 'sourceKey',None, None)
+		confirm = common.getValidatedParam(self.request, self.response, 'confirm', None, None)
+		if confirm and confirm == 'DELETE':
+			if urlSafeSourceKey:
+				sourceKey = model.ndb.Key(urlsafe=urlSafeSourceKey)
+				source = sourceKey.get()
+				if source:
+					model.clearDataStore('Story', source.title)
+					source.storyCount = 0
+					source.wordCount = 0
+					source.put()
+					self.response.out.write('Deleted all stories from: {0}</br>'.format(source.title))
+				else:
+					self.response.out.write('Invalid source key recieved.')
+			else:
+				self.response.out.write('No source key passed in.<br/>')
+		else:
+			self.response.out.write('Invalid confirm string. Delete aborted.<br/>')	
 		self.response.out.write('<a href="/admin">Return to Admin Home</a>')
 
 app = webapp2.WSGIApplication([
