@@ -89,6 +89,7 @@ def sourceRecount(source = None):
 		source.put()
 
 def _countSourceStats(source):
+	logging.info('updating source stats for {0}'.format(encodeString(source.title)))
 	wordCount = 0
 	storyCount = 0
 	q = m.Story.query(m.Story.firstPub.publication == source.title)
@@ -145,30 +146,6 @@ def getStories(filters, order, pageSize, offset):
 	
 	return q.fetch(pageSize, offset = pageSize*offset)
 	
-#define the key mapping
-def futures_name_map(old_name):
-	m = defaultdict(lambda:False)
-	m['DC.title']='title'
-	m['dc.title']='title'
-	m['DC.creator']='author'
-	m['dc.creator']='author'
-	m['description']='subtitle'
-	m['DC.language']='language'
-	m['dc.language']='language'
-	m['DC.identifier']='doi'
-	m['dc.identifier']='doi'
-	m['prism.publicationDate']='publicationDate'
-	m['prism.volume']='volume'
-	m['prism.issue']='issue'
-	m['prism.number']='issue'
-	m['prism.section']='section'
-	m['prism.publicationName']='publication'
-	m['citation_publisher']='publisher'
-	m['prism.issn']='issn'
-	m['prims.eIssn']='eIssn'
-	m['prism.rightsAgent']='publicationRightsAgent'
-	return m[old_name]
-
 def clearDataStore(kind, publication=None):
 	q = ndb.Query(kind=kind)
 	if kind == 'Story' and publication:
@@ -203,6 +180,8 @@ def importStories(sourceKey, first=0, last=0, reimport=False):
 		updateList.append(source)
 		ndb.put_multi(updateList)
 		sourceRecount(source)
+	else:
+		logging.info('_importStories: Update list was empty')
 	response.out.write('Story import complete. Updated {0} stories.<br/>Source: {1}<br/>'.format(storyCount, source))
 
 def reimportStory(urlSafeStoryKey):
@@ -260,8 +239,18 @@ def _getStoryListLightspeed(url, firstPage=1, lastPage=16):
 				storyList.append({'url':str(s['href'])})
 	return storyList	
 
-def _getStoryListNature(url, limit, offset=0):
-	pass
+def _getStoryListNature(url, first=0, last=0):
+	r = requests.get(url)
+	soup = BeautifulSoup(r.text)
+	storyList = []
+	storyCount =0
+	urlBase = 'http://www.nature.com'
+	for ul in soup.find_all('ul',class_='article-list'):
+		for a in ul.find_all('article'):
+			storyCount +=1
+			if storyCount >= first and storyCount <last:
+				storyList.append({'url':urlBase+a.find('a')['href']})
+	return storyList
 
 def _importStory(url, source, overwrite):
 	response.out.write('trying to get story from: {0}<br/>'.format(url))
@@ -304,7 +293,9 @@ def _titleFromSoup(soup, source):
 	elif source.title == LIGHTSPEED:
 		title = soup.find('h1', class_='posttitle').get_text().strip()
 	elif source.title == NATURE:
-		pass
+		titleTag = soup.find('meta', attrs={"name":re.compile("^dc.title$", re.I)})
+		title = titleTag['content']
+	logging.info('_titleFromSoup: {0}'.format(encodeString(title)))
 	return title
 		
 def _parseSoupAE(soup, url, source, s):
@@ -429,8 +420,113 @@ def _parseSoupLightspeed(soup, url, source, s):
 	return s
 	
 def _parseSoupNature(soup, url, source, s):
-	pass
+	if soup.find('title').get_text().strip() != 'Nature Publishing Group: Error Page':
+		meta = {}
+		for t in soup.find_all('meta', attrs={'name':True}):
+			key = name_map_nature(t['name'])
+			if key != False:
+				meta[key] =  t['content']
+				
+		if 'doi' in meta:		
+			doi = meta['doi'].replace('doi:','')
+			publicationDate = parser.parse(meta['publicationDate'])			
+			firstPub = m.FirstPub(
+				url = url
+				, publication = NATURE
+				, date = publicationDate
+				, doi = doi
+				, volume = meta['volume']
+				, issue = meta['issue']
+				, section = meta['section']
+			)
+						
+			#Get story text
+			storyRootParent = soup.find('div', class_='section second no-nav no-title')
+			if storyRootParent == None:
+				storyRoot = soup.find('div',id='articlebody')
+			else:			
+				storyRoot = storyRootParent.find('div',class_='content')
+			
+			for t in storyRoot.findAll('div', class_='illustration'):
+				t.decompose()
+				
+			if storyRoot != None:
+				del storyRoot['class']
+				storyText = unicode(storyRoot)
+				wordCount = len(storyText.split(None))	
+			else:
+				storyText = 'Story text import failed.<br/>'
+				wordCount = 0
+		
+			#Get metrics data		
+			articleId = doi.split('/')[1]
+			metricsUrl = "http://www.nature.com/nature/journal/v"+meta['volume']+"/n"+meta['issue']+"/"+articleId+"/metrics"
+			r2 = requests.get(metricsUrl)
+			mSoup = BeautifulSoup(r2.text)
+
+			donut = mSoup.find('div',class_='altmetric-donut')	
+			if donut != None:
+				firstPub.altScore = int(donut.find('img')['src'].split('&')[1].split('=')[1])					
+				altmetricContexts = []
+				context_block = mSoup.find('div',class_='altmetric-context')
+				if context_block != None:
+					contexts = context_block.find_all('li')
+					for c in contexts:
+						altmetricContexts.append(c.get_text().replace('\n','').replace('\t',''))
+					firstPub.atlContext = unicode(altmetricContexts)
+					
+				networks = ['twitter','facebook']
+				for n in networks:
+					block = mSoup.find('div',class_='altmetric-'+n)
+					if block != None:
+						setattr(firstPub, n, int(block.find('b').get_text()))
+				
+				block = mSoup.find('h2',class_='metrics-header').find('span',class_='total')
+				if block != None:
+					setattr(firstPub, 'pageViews', int(block.get_text().replace(',','')))
 	
+			s.populate(
+				category = 'fiction'
+				, genre = 'sci-fi'
+				, language = 'english'
+				, title = meta['title']
+				, subtitle = meta['subtitle']
+				, creator = [meta['author']]
+				, text = storyText
+				, wordCount = wordCount
+				, firstPub = firstPub 
+			)
+		else:
+			response.out.write('No DOI, skipping<br/>')
+			s = None
+	else:
+		s = None
+		response.out.write('Story link lead to Nature error page. No story imported<br/>')
+	return s
+	
+#define the key mapping
+def name_map_nature(old_name):
+	m = defaultdict(lambda:False)
+	m['DC.title']='title'
+	m['dc.title']='title'
+	m['DC.creator']='author'
+	m['dc.creator']='author'
+	m['description']='subtitle'
+	m['DC.language']='language'
+	m['dc.language']='language'
+	m['DC.identifier']='doi'
+	m['dc.identifier']='doi'
+	m['prism.publicationDate']='publicationDate'
+	m['prism.volume']='volume'
+	m['prism.issue']='issue'
+	m['prism.number']='issue'
+	m['prism.section']='section'
+	m['prism.publicationName']='publication'
+	m['citation_publisher']='publisher'
+	m['prism.issn']='issn'
+	m['prims.eIssn']='eIssn'
+	m['prism.rightsAgent']='publicationRightsAgent'
+	return m[old_name]	
 	
 		
 	

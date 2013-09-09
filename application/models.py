@@ -13,8 +13,8 @@ class FirstPub(ndb.Model):
 	publisher = ndb.StringProperty()
 	pageViews = ndb.IntegerProperty()
 	comments = ndb.IntegerProperty()	
-	fbShares = ndb.IntegerProperty()
-	tweets = ndb.IntegerProperty()
+	facebook = ndb.IntegerProperty()
+	twitter = ndb.IntegerProperty()
 	altScore = ndb.IntegerProperty()
 	altInfo = ndb.TextProperty()
 
