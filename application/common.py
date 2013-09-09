@@ -42,6 +42,25 @@ def getValidatedParam(request, response, param, default=None, enforceType=None):
 				vp = p
 			elif enforceType == 'time':
 				vp = p
+			elif enforceType == 'dict':
+				vp = {}
+				entries = unicode.split(p, ',')
+				for e in entries:
+					row = unicode.split(e, '=')
+					vp[row[0]] = row[1]
+			elif enforceType == 'list':
+				vp = []
+				entries = unicode.split(p, ',')
+				for e in entries:
+					vp.append(e)
 		else:
 			vp = p
 	return vp	
+	
+def getParamString(request, response, param):
+	pString = getValidatedParam(request, response, param, None, None)
+	if not pString:
+		pString = ''
+	else:
+		pString = '&{0}={1}'.format(param, pString)
+	return pString
