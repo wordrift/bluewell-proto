@@ -58,9 +58,10 @@ def getValidatedParam(request, response, param, default=None, enforceType=None):
 	return vp	
 	
 def getParamString(request, response, param):
+	import urllib
 	pString = getValidatedParam(request, response, param, None, None)
 	if not pString:
 		pString = ''
 	else:
-		pString = '&{0}={1}'.format(param, pString)
+		pString = '&{0}={1}'.format(param, urllib.quote_plus(pString))
 	return pString
