@@ -100,13 +100,17 @@ class Preview(webapp2.RequestHandler):
 				self.response.out.write("<!DOCTYPE html><html><head><meta charset='utf-8'/></head><body style='width:550px;border:1px solid black; padding:25px;'>")			
 				self.response.out.write("Title: {0}<br/>".format(model.encodeString(story.title)))
 				if story.creator and story.creator[0]:
-					self.response.out.write("Author: {0}<br/>".format(story.creator[0]))	
+					self.response.out.write("Author: {0}<br/>".format(story.creator[0]))		
 				if story.wordCount:		
 					self.response.out.write("Word Count: {0}<br/>".format(story.wordCount))
 				self.response.out.write("Publication: {0}<br/>".format(story.firstPub.publication))
+				if story.firstPub.date:
+					self.response.out.write("Publication Date: {0}</br>".format(story.firstPub.date))
 				self.response.out.write("URL: <a target='_blank' href='{0}'>{0}</a><br/>".format(story.firstPub.url))
 				if story.text:
-					self.response.out.write(story.text)
+					self.response.out.write(model.encodeString(story.text))
+				if story.creatorInfo:
+					self.response.out.write("<hr/>{0}".format(model.encodeString(story.creatorInfo)))
 				self.response.out.write("</body></html>")
 			else:
 				self.response.out.write('Invalid storyKey provided')
@@ -128,10 +132,10 @@ class ImportStories(webapp2.RequestHandler):
 			model.reimportStory(storyKey)
 			self.response.out.write('<a href="/admin">Return to Admin Home</a>')
 		elif sourceKey:
-			limit = common.getValidatedParam(self.request, self.response, 'limit', None, 'number')
+			first = common.getValidatedParam(self.request, self.response, 'first', None, 'number')
 			reimport = common.getValidatedParam(self.request, self.response, 'reimport', False, 'bool')
-			offset = common.getValidatedParam(self.request, self.response, 'offset', 0, 'number')
-			model.importStories(sourceKey, limit, offset, reimport)
+			last = common.getValidatedParam(self.request, self.response, 'last', 0, 'number')
+			model.importStories(sourceKey, first, last, reimport)
 			self.response.out.write('<a href="/admin">Return to Admin Home</a>')
 		else:
 			self.response.out.write('No storyKey provided. Could not reimport story <br/> requestUri: {0}'.format(self.request.url))
