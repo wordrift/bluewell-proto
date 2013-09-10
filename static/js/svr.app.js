@@ -515,9 +515,10 @@ SVRWebView.prototype.setStory = function(s){
 	
 	$('#next-button').removeClass('disabled');
 	$('#previous-button').removeClass('disabled');
-	
-	$('#admin-controls').removeClass('hidden');
-	$('#admin-controls').html('<a target="_blank" href="/admin/preview?storyKey='+s.key+'">Admin Preview</a>');
+	if(this._controller.isAdmin) {
+		$('#admin-controls').removeClass('hidden');
+		$('#admin-controls').html('<a target="_blank" href="/admin/preview?storyKey='+s.key+'">Admin Preview</a>');
+	}
 	
 	var p = $(window).scrollTop();
 	window.scrollTo(0,0);
