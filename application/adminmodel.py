@@ -249,7 +249,10 @@ def _getStoryListNature(url, first=0, last=0):
 		for a in ul.find_all('article'):
 			storyCount +=1
 			if storyCount >= first and storyCount <last:
-				storyList.append({'url':urlBase+a.find('a')['href']})
+				url = a.find('a')['href']
+				if 'doifinder' in url:
+					storyList.append({'url':urlBase+url})
+				
 	return storyList
 
 def _importStory(url, source, overwrite):
