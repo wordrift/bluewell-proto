@@ -1,5 +1,9 @@
 import json
 
+AE = 'AE - The Canadian Science Fiction Review'
+NATURE = 'Nature'
+LIGHTSPEED = 'Lightspeed Science Fiction & Fantasy'
+
 def handleError(request, response, error):
 	pass
 	
