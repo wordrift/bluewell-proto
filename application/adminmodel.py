@@ -194,7 +194,7 @@ def reimportStory(urlSafeStoryKey):
 
 def _getExistingStories(source, limit, offset):
 	q = m.Story.query(m.Story.firstPub.publication == source.title)
-	q = q.order(m.Story.title)
+	q = q.order(-m.Story.title)
 	stories = q.fetch(limit, offset=offset)
 	storyList = []
 	for s in stories:
@@ -455,15 +455,21 @@ def _parseSoupNature(soup, url, source, s):
 							
 			if storyRoot != None:
 				del storyRoot['class']
-				storyText = unicode(storyRoot)
-				wordCount = len(storyText.split(None))	
+				del storyRoot['id']
+
 				for t in storyRoot.findAll('div', class_='illustration'):
 					t.decompose()
 
+				t = storyRoot.find('div', id='illus1')
+				if t:
+					t.decompose()
+				storyText = unicode(storyRoot)
+				wordCount = len(storyText.split(None))	
 			else:
 				storyText = 'Story text import failed.<br/>'
 				wordCount = 0
 		
+			creatorInfoDiv = None
 			creatorInfoDivParent = soup.find('div',id='author-affiliations')
 			if creatorInfoDivParent:
 				creatorInfoDiv = creatorInfoDivParent.find('h3')
@@ -504,20 +510,22 @@ def _parseSoupNature(soup, url, source, s):
 				block = mSoup.find('h2',class_='metrics-header').find('span',class_='total')
 				if block != None:
 					setattr(firstPub, 'pageViews', int(block.get_text().replace(',','')))
-	
+				
 			s.populate(
 				category = 'fiction'
 				, genre = 'sci-fi'
 				, language = 'english'
 				, title = meta['title']
 				, subtitle = meta['subtitle']
-				, creator = [meta['author']]
 				, text = storyText
 				, wordCount = wordCount
 				, firstPub = firstPub 
 			)
 			if creatorInfo:
 				s.creatorInfo = creatorInfo
+			if 'author' in meta:
+				s.creator = [meta['author']]
+
 		else:
 			response.out.write('No DOI, skipping<br/>')
 			s = None
