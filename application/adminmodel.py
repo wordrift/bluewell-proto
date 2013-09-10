@@ -463,9 +463,13 @@ def _parseSoupNature(soup, url, source, s):
 				for t in storyRoot.findAll('div', class_='illustration'):
 					t.decompose()
 
-				t = storyRoot.find('div', id='illus1')
-				if t:
+				for t in storyRoot.findAll('div', attrs={"id":re.compile("^illus", re.I)}):
+					logging.info('matched an illustration node: {0}'.format(t['id']))
 					t.decompose()
+				if meta['title'] == 'Harnessing the brane-deer':
+					for t in soup.findAll('img'):
+						t.replace_with('Lambda')
+				
 				storyText = unicode(storyRoot)
 				wordCount = len(storyText.split(None))	
 			else:
@@ -513,13 +517,20 @@ def _parseSoupNature(soup, url, source, s):
 				block = mSoup.find('h2',class_='metrics-header').find('span',class_='total')
 				if block != None:
 					setattr(firstPub, 'pageViews', int(block.get_text().replace(',','')))
+
+			if len(meta['subtitle']) > 20:
+				d = soup.find('div', id='abs')
+				subtitle = d.find('p').get_text().strip()
+			else:
+				subtitle = meta['subtitle']
+
 				
 			s.populate(
 				category = 'fiction'
 				, genre = 'sci-fi'
 				, language = 'english'
 				, title = meta['title']
-				, subtitle = meta['subtitle']
+				, subtitle = subtitle
 				, text = storyText
 				, wordCount = wordCount
 				, firstPub = firstPub 
