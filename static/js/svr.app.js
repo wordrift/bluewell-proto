@@ -27,6 +27,8 @@ SVRController.prototype.displayStory = function(s) {
 	console.log('SVRController displayStory', this, s);
 	this._story = s;
 	this._view.setStory(s);
+	this._favorite = false;
+	this._rating = null;
 	
 	if(s.userHistory) {
 		h = s.userHistory;
@@ -35,15 +37,15 @@ SVRController.prototype.displayStory = function(s) {
 		} else {
 			this._favorite = false;
 		}
-		this._view.setFavorite(this._favorite);
-		
 		if(h.rating) {
 			this._rating = h.rating*1;
 		} else {
 			this._rating = null;
 		}
-		this._view.setRating(this._rating);
 	}	
+	this._view.setFavorite(this._favorite);
+	this._view.setRating(this._rating);
+	
 	this._model.updateStream({
 		scope: this,
 		userKey: this._userKey,
