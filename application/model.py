@@ -9,6 +9,8 @@ genre = None
 language = None
 user = None
 
+BASE_NUM_RECS = 5
+
 def setStream(u, cat, g, lang):
 	global user
 	global category
@@ -40,7 +42,7 @@ def createUser(userId, email, source):
 	userKey = user.put()
 	u = userKey.get()
 	setStream(u, 'fiction', 'sci-fi','english')
-	buildRecommendations(0, 100, 0, False)
+	buildRecommendations(BASE_NUM_RECS, 0, False)
 	#Setup the first story in the user's stream
 	logging.info('setting first story in Stream for user') 
 	stories = getStories(None,False, 0,1,False) 
@@ -53,7 +55,7 @@ def createUser(userId, email, source):
 	return u
 
 def getCurrentStory(lastOrFurthest='last'):
-	logging.info('getting current story')
+	logging.info('getting current story for user: {0}'.format(user.email))
 	snQ = m.StreamNode.query(ancestor=user.key)
 	if lastOrFurthest == 'last':
 		snQ = snQ.order(-m.StreamNode.updatedAt)
@@ -69,9 +71,11 @@ def getCurrentStory(lastOrFurthest='last'):
 	return story
 
 def buildSN(user, story):
+	logging.info('building SN {0}'.format(user.email))
 	sn = m.StreamNode(
 		parent = user.key,
-		storyKey = story.key)
+		storyKey = story.key
+	)
 	return sn
 	
 def getAnchor(anchorId, source):
@@ -87,18 +91,15 @@ def updateStream(stream):
 		logging.info(p);
 		if 'storyKey' in p:
 			storyKey = ndb.Key(urlsafe=p['storyKey'])
+			story = storyKey.get()
 			q = m.StreamNode.query(ancestor=user.key).filter(m.StreamNode.storyKey == storyKey)
 			sn = q.get()			
 
 			#If none found, create a new StreamNode 
 			#and remove this story from the recommendation list
 			if sn is None:
-				logging.info('no sn for the story: {0}, trying to create '.format(storyKey.get().title))
-				sn = m.StreamNode(
-					parent = user.key, 
-					storyKey = storyKey,
-					title = storyKey.get().title
-				)
+				logging.info('no sn for the story: {0}, trying to create '.format(story.title))
+				sn = buildSN(user, story)
 				if 'createdAt' in p:
 					sn.createdAt = p['createdAt']
 				
@@ -180,9 +181,12 @@ def getStories(anchor, includeAnchor=True, numPrevious=0, numAfter=1, fullText=T
 				storyDict = storyToDict(story, sn, fullText)
 				storyList.append(storyDict)
 				iAfter += 1
-			
+	else:
+		logging.info('no anchorSN. iAfter: {0}, numAfter:{1}'.format(iAfter, numAfter))
+		numAfter += 1
+				
 	#Finally, get more stories from the recommendation list, until we reach the requested total
-	if numAfter - iAfter > 0:
+	if iAfter < numAfter:
 		logging.info('getting recommendations to fill out results')
 		recs = getRecommendations(numAfter - iAfter)
 		for r in recs:
@@ -190,10 +194,11 @@ def getStories(anchor, includeAnchor=True, numPrevious=0, numAfter=1, fullText=T
 			storyDict = storyToDict(story, None, fullText)
 			storyList.append(storyDict)
 			logging.info('got a recommendation: {0}'.format(story.title))
+			iAfter += 1
 
 	return list(storyList)
 
-def getRecommendations(numTarget):
+def getRecommendations(numTarget, offset = 0):
 	storyList = []
 	numResults = 0
 	q = m.Rec.query(ancestor=user.key)
@@ -203,24 +208,32 @@ def getRecommendations(numTarget):
 		storyList.append(s)
 		numResults += 1
 				
-	''' TODO: Build More Recommendations, if I run out	'''	
+	''' TODO: Build More Recommendations, if I run out	'''
+	if numResults < numTarget:
+		buildRecommendations(numTarget - numResults + BASE_NUM_RECS, 0, False)	
+		sList = getRecommendations(numTarget - numResults, numResults)
+		for s in sList:
+			storyList.append(s)
 	return storyList
 
-def buildRecommendations(numComplete, numTarget=100, offset=0, clearExisting=False):
+def buildRecommendations(numTarget=5, offset=0, clearExisting=False):
+	logging.info('buildRecommendations, numTarget: {0}, offset {1}, clearExisting: {2}'.format(numTarget, offset, clearExisting))
 	if clearExisting:
 		clearRecommendations()
 	
 	#Get the list of stories, in order		
 	q = m.Story.query()
-	q = q.filter(m.Story.firstPub.publication == 'AE - The Canadian Science Fiction Review')
+#	q = q.filter(m.Story.firstPub.publication == common.AE)
 	
 	#q = q.order(-m.Story.firstPub.altScore).order(m.Story.firstPub.date)
-	q = addStreamFilters(q)
+#	q = addStreamFilters(q)
 	q = q.order(-m.Story.wordCount)
 	
 	numResults = 0;
+	numComplete = 0;
 	recList = []
-	for s in q.fetch(numTarget, offset=offset):
+	for s in q.fetch(numTarget+20, offset=offset):
+		logging.info('got a possible rec: {0}'.format(encodeString(s.title)))
 		numResults +=1
 		snQ = m.StreamNode.query(ancestor=user.key).filter(m.StreamNode.storyKey == s.key)
 		if not clearExisting:
@@ -232,16 +245,17 @@ def buildRecommendations(numComplete, numTarget=100, offset=0, clearExisting=Fal
 		if not snQ.get() and not existingRec:
 			recList.append(buildRec(s, numComplete))
 			numComplete +=1		
-		if numComplete == numTarget:
-			break
+			if numComplete == numTarget:
+				break
 	
 	#Save the recommendations to the datastore		
 	ndb.put_multi(recList)		
+	logging.info('buildRecommendations: {0} recs added'.format(str(len(recList))))
 	
 	#Keep going if we didn't get enough recommendations 
 	#and the last query returned as many results as asked for
 	if numComplete < numTarget and numResults == numTarget:
-		numComplete = buildRecommendations(numComplete, numTarget, offset+numTarget, False, response)
+		numComplete += buildRecommendations(numTarget-numComplete, offset+numResults, False)
 	return numComplete
 	
 def buildRec(story, order):
@@ -249,9 +263,6 @@ def buildRec(story, order):
 		parent = user.key
 		, storyKey = story.key
 		, title = story.title
-#		, category = story.category
-#		, genre = story.genre
-#		, language = story.language
 		, order = order
 	)
 	return rec
