@@ -260,22 +260,25 @@ def _importStory(url, source, overwrite):
 	
 	s = None
 	title = _titleFromSoup(soup, source)
-	if title not in source.exclusions:
-		q = m.Story.query().filter(m.Story.title == title, m.Story.firstPub.publication == source.title)
-		existingStory = q.get()
-		if not existingStory:
-			s = m.Story()
-		elif overwrite:
-			s = existingStory
-
-		if s:
-			s.title = title	
-			s = _storyEntityFromSoup(soup, url, source, s)
-			response.out.write('imported story: {0}<br/>'.format(encodeString(title)))		
+	if title:
+		if title not in source.exclusions:
+			q = m.Story.query().filter(m.Story.title == title, m.Story.firstPub.publication == source.title)
+			existingStory = q.get()
+			if not existingStory:
+				s = m.Story()
+			elif overwrite:
+				s = existingStory
+	
+			if s:
+				s.title = title	
+				s = _storyEntityFromSoup(soup, url, source, s)
+				response.out.write('imported story: {0}<br/>'.format(encodeString(title)))		
+			else:
+				response.out.write('skipping story, already exists: {0} - {1} <br/>'.format(encodeString(title), source.title))
 		else:
-			response.out.write('skipping story, already exists: {0} - {1} <br/>'.format(encodeString(title), source.title))
+			response.out.write('Story: {0} is in exclusions list, skipping<br/>'.format(encodeString(title)))
 	else:
-		response.out.write('Story: {0} is in exclusions list, skipping<br/>'.format(encodeString(title)))
+		response.out.write('Failed to get story title for {0} <br/>'.format(url))
 	return s	
 
 def _storyEntityFromSoup(soup, url, source, s):
@@ -294,7 +297,10 @@ def _titleFromSoup(soup, source):
 		title = soup.find('h1', class_='posttitle').get_text().strip()
 	elif source.title == NATURE:
 		titleTag = soup.find('meta', attrs={"name":re.compile("^dc.title$", re.I)})
-		title = titleTag['content']
+		if titleTag:
+			title = titleTag['content']
+		else:
+			logging.info('Error: Failed to get title from document.')
 	logging.info('_titleFromSoup: {0}'.format(encodeString(title)))
 	return title
 		
@@ -446,14 +452,14 @@ def _parseSoupNature(soup, url, source, s):
 				storyRoot = soup.find('div',id='articlebody')
 			else:			
 				storyRoot = storyRootParent.find('div',class_='content')
-			
-			for t in storyRoot.findAll('div', class_='illustration'):
-				t.decompose()
-				
+							
 			if storyRoot != None:
 				del storyRoot['class']
 				storyText = unicode(storyRoot)
 				wordCount = len(storyText.split(None))	
+				for t in storyRoot.findAll('div', class_='illustration'):
+					t.decompose()
+
 			else:
 				storyText = 'Story text import failed.<br/>'
 				wordCount = 0
