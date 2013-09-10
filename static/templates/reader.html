@@ -13,7 +13,7 @@
 		 
 		<script type='text/javascript'>				
 		$(document).ready(function() {		
-			var sc = new SVRController({userKey:'{{userKey}}'});	
+			var sc = new SVRController({userKey:'{{userKey}}',isAdmin:'{{isAdmin}}'});	
 		});
 		</script>
 		<meta name="viewport" content="width=550 user-scalable=0"/>
@@ -76,6 +76,8 @@
 		</div>
 		<div id='previous-button'>
 			<< Back
+		</div>
+		<div id='admin-controls' class='hidden'>
 		</div>
 	</body>
 </html>

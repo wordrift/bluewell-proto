@@ -9,6 +9,11 @@ function SVRController(kwargs) {
 	}
 	this._userKey = kwargs.userKey; //Stored for conversion to google data store
 	this._logins = kwargs.logins;
+	if(kwargs.isAdmin && kwargs.isAdmin == 'True') {
+		this.isAdmin = true;
+	} else { 
+		this.isAdmin = false;	
+	}
 	this._story = null;
 	this._favorite = false;
 	this._rating = null;
@@ -510,6 +515,10 @@ SVRWebView.prototype.setStory = function(s){
 	
 	$('#next-button').removeClass('disabled');
 	$('#previous-button').removeClass('disabled');
+	
+	$('#admin-controls').removeClass('hidden');
+	$('#admin-controls').html('<a target="_blank" href="/admin/preview?storyKey='+s.key+'">Admin Preview</a>');
+	
 	var p = $(window).scrollTop();
 	window.scrollTo(0,0);
 	if(!this._navVisible) {this.toggleNav();}

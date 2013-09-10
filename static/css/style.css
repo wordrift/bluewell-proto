@@ -33,9 +33,9 @@ header h1 {
 }
 
 #header-subtitle {
-	margin-left:50px;
 	font-style:oblique;
 	margin-bottom: 5px;
+	text-align:center;
 }
 
 #story-text {
@@ -63,6 +63,18 @@ header h1 {
 	background-color:#014BAE;
 	width:90%;
 	padding:10px 5%;
+}
+
+#admin-controls {
+	position:fixed;
+	bottom:0;
+	left:0;
+	background-color:white;
+	padding:10px;
+}
+
+.hidden {
+	display:none;
 }
 
 #story-info {

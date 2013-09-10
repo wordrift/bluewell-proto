@@ -83,7 +83,8 @@ class Reader(webapp2.RequestHandler):
 			template_values = {
 				'userNick': gUser.email(), 
 				'logoutUrl': users.create_logout_url('/'),
-				'userKey': user.key.urlsafe()
+				'userKey': user.key.urlsafe(),
+				'isAdmin':users.is_current_user_admin() 
 			}
 			self.response.out.write(template.render(tpath+'reader.html', template_values))
 		else:
