@@ -464,7 +464,14 @@ def _parseSoupNature(soup, url, source, s):
 				storyText = 'Story text import failed.<br/>'
 				wordCount = 0
 		
-			creatorInfoDiv = soup.find('div',id='author-affiliations').find('h3')
+			creatorInfoDivParent = soup.find('div',id='author-affiliations')
+			if creatorInfoDivParent:
+				creatorInfoDiv = creatorInfoDivParent.find('h3')
+			else:
+				creatorInfoDivParent = soup.find('div', id='affiliations-notes')
+				if creatorInfoDivParent:
+					creatorInfoDiv = creatorInfoDivParent.find('li')
+						
 			if creatorInfoDiv:
 				creatorInfoDiv.name = 'div'
 				creatorInfo = unicode(creatorInfoDiv)
