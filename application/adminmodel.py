@@ -474,6 +474,7 @@ def _parseSoupNature(soup, url, source, s):
 				wordCount = len(storyText.split(None))	
 			else:
 				storyText = 'Story text import failed.<br/>'
+				logging.info(encodeString(storyText))
 				wordCount = 0
 		
 			creatorInfoDiv = None
@@ -518,7 +519,7 @@ def _parseSoupNature(soup, url, source, s):
 				if block != None:
 					setattr(firstPub, 'pageViews', int(block.get_text().replace(',','')))
 
-			if len(meta['subtitle']) > 20:
+			if len(meta['subtitle']) > 50:
 				d = soup.find('div', id='abs')
 				subtitle = d.find('p').get_text().strip()
 			else:
