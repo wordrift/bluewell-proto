@@ -223,9 +223,9 @@ def buildRecommendations(numTarget=5, offset=0, clearExisting=False):
 	
 	#Get the list of stories, in order		
 	q = m.Story.query()
-#	q = q.filter(m.Story.firstPub.publication == common.AE)
+	q = q.filter(m.Story.firstPub.publication == common.NATURE)
 	
-	#q = q.order(-m.Story.firstPub.altScore).order(m.Story.firstPub.date)
+	q = q.order(-m.Story.firstPub.altScore).order(m.Story.firstPub.date)
 #	q = addStreamFilters(q)
 	q = q.order(-m.Story.wordCount)
 	
@@ -236,25 +236,30 @@ def buildRecommendations(numTarget=5, offset=0, clearExisting=False):
 		logging.info('got a possible rec: {0}'.format(encodeString(s.title)))
 		numResults +=1
 		snQ = m.StreamNode.query(ancestor=user.key).filter(m.StreamNode.storyKey == s.key)
-		if not clearExisting:
-			recQ = m.Rec.query(ancestor=user.key).filter(m.Rec.storyKey == s.key)
-			existingRec = recQ.get()
-		else:
-			existingRec = False
+		sn = snQ.get()
+		if not sn:
+			if not clearExisting:
+				recQ = m.Rec.query(ancestor=user.key).filter(m.Rec.storyKey == s.key)
+				existingRec = recQ.get()
+			else:
+				existingRec = False
 			
-		if not snQ.get() and not existingRec:
-			recList.append(buildRec(s, numComplete))
-			numComplete +=1		
-			if numComplete == numTarget:
-				break
+			if not existingRec:
+				recList.append(buildRec(s, numComplete))
+				numComplete +=1		
+				if numComplete == numTarget:
+					break
 	
-	#Save the recommendations to the datastore		
-	ndb.put_multi(recList)		
-	logging.info('buildRecommendations: {0} recs added'.format(str(len(recList))))
+	#Save the recommendations to the datastore
+	if len(recList)	> 0:
+		ndb.put_multi(recList)		
+		logging.info('buildRecommendations: {0} recs added, numTarget: {1}, numResults: {2}'.format(str(len(recList)), numComplete, numResults))
+	else:
+		logging.info('buildRecommendations failed to get an valid results, numResults: {0}'.format(numResults))
 	
 	#Keep going if we didn't get enough recommendations 
 	#and the last query returned as many results as asked for
-	if numComplete < numTarget and numResults == numTarget:
+	if numComplete < numTarget and numResults >= numTarget:
 		numComplete += buildRecommendations(numTarget-numComplete, offset+numResults, False)
 	return numComplete
 	
