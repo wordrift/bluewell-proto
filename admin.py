@@ -50,12 +50,12 @@ class Home(webapp2.RequestHandler):
 			stories.append({
 				'title' : s.title
 				, 'creator' : s.creator
+				, 'score':s.score
 				, 'publication' : s.firstPub.publication
 				, 'wordCount' : s.wordCount
 				, 'urlSafeKey' : s.key.urlsafe()
-			})
-		 
-		
+			})		 
+
 			 
 		template_values = {'stories':stories, 
 			'sources':sources, 
@@ -150,6 +150,11 @@ class Recount(webapp2.RequestHandler):
 		model.setup(self.request, self.response)
 		model.sourceRecount()
 
+class ScoreStories(webapp2.RequestHandler):
+	def get(self):
+		model.setup(self.request, self.response)
+		model.scoreStories()
+
 class UpdateSources(webapp2.RequestHandler):
 	def get(self):
 		model.updateSources()
@@ -198,6 +203,7 @@ app = webapp2.WSGIApplication([
 	('/admin/preview', Preview),
 	('/admin/import',ImportStories),
 #	('/admin/reset',ResetDataStore),
+	('/admin/scorestories', ScoreStories),
 	('/admin/delete', Delete),	
 	('/admin/recount',Recount),
 	('/admin/buildrecs',BuildRecommendations),

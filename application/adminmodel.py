@@ -101,6 +101,37 @@ def _countSourceStats(source):
 	source.storyCount = storyCount
 	source.wordCount = wordCount
 	return source
+
+def scoreStories():
+#	props = ['altscore','facebook','twitter','pageViews', 'comments']
+	updateList = []
+	q = m.Story.query()
+	cutOffDate = datetime.datetime.date(datetime.datetime.strptime('2013-01-01', '%Y-%m-%d'))
+	logging.info('cutOffDate: {0}'.format(type(cutOffDate)))
+	for story in q.fetch():
+		publicationDate = getattr(story.firstPub, 'date', None)
+		if publicationDate and publicationDate >= cutOffDate:
+			story.score = -1
+		else:				
+			if story.firstPub.publication == common.NATURE:			
+				altScore = getattr(story.firstPub, 'altScore', 0)
+				if altScore:
+					story.score = altScore
+				else:
+					pageViews = getattr(story.firstPub, 'pageViews', 0)
+					if pageViews:
+						story.score =  pageViews /10000
+					else:
+						story.score = 0
+			else:
+				comments = getattr(story.firstPub, 'comments',0)
+				if comments:
+					story.score = comments
+				else:
+					story.score = 0
+		updateList.append(story)
+	ndb.put_multi(updateList)
+				
 		
 def clearDataStore(kind):
 	q = ndb.Query(kind=kind)

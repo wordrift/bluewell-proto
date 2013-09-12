@@ -223,11 +223,8 @@ def buildRecommendations(numTarget=5, offset=0, clearExisting=False):
 	
 	#Get the list of stories, in order		
 	q = m.Story.query()
-	q = q.filter(m.Story.firstPub.publication == common.NATURE)
-	
 	q = q.order(-m.Story.firstPub.altScore).order(m.Story.firstPub.date)
-#	q = addStreamFilters(q)
-	q = q.order(-m.Story.wordCount)
+
 	
 	numResults = 0;
 	numComplete = 0;

@@ -5,6 +5,7 @@
 <h2>Sources</h2>
 <a href='/admin/recount'>Recount</a>
 <a href='/admin/updatesources'>Update Sources</a>
+<a href='/admin/scorestories'>Score Stories</a>
 <table>
 	<tr>
 		<th>Source</th>
@@ -30,6 +31,7 @@
 	<tr>
 		<th><a href='/admin?order={% if 'title' in order %}-{% endif %}title{{filterString}}'>Title</a></th>
 		<th><a href='/admin?order={% if 'creator' in order %}-{% endif %}creator{{filterString}}'>Creator</a></th>
+		<th><a href='/admin?order={% if 'score' in order %}-{% endif %}score{{filterString}}'>Score</a></th>
 		<th><a href='/admin?order={% if 'wordCount' in order %}-{% endif %}wordCount{{filterString}}'>Word Count</a></th>
 		<th><a href='/admin?order={% if 'publication' in order %}-{% endif %}publication{{filterString}}'>Publication</a></th>
 		<th>Actions</th>
@@ -38,6 +40,7 @@
 	<tr>
 		<td><a href='/admin/preview?storyKey={{s.urlSafeKey}}'>{{ s.title }}</a></td>
 		<td>{{ s.creator}}</td>
+		<td>{{ s.score }}</td>
 		<td>{{ s.wordCount }}</td>
 		<td>{{ s.publication }}</td>
 		<td>

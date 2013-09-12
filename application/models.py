@@ -31,6 +31,8 @@ class Story(ndb.Model):
 	firstPub = ndb.StructuredProperty(FirstPub)
 	ratings = ndb.IntegerProperty(default=0, required=True)
 	ratingPoints = ndb.IntegerProperty(default=0, required=True)
+	score = ndb.IntegerProperty(default=0, required=True)
+	rightsOwned = ndb.StringProperty()
 
 class StorySource(ndb.Model):
 	title = ndb.StringProperty(required=True)
