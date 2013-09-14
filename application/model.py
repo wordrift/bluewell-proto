@@ -223,7 +223,7 @@ def buildRecommendations(numTarget=5, offset=0, clearExisting=False):
 	
 	#Get the list of stories, in order		
 	q = m.Story.query()
-	q = q.order(-m.Story.firstPub.altScore).order(m.Story.firstPub.date)
+	q = q.order(-m.Story.score).order(m.Story.firstPub.date)
 
 	
 	numResults = 0;
